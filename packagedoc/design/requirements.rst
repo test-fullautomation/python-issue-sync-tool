@@ -1,0 +1,73 @@
+General requirements:
+---------------------
+- Sync issues from Github, Gitlab, Jira to RTC
+
+  + Create new ticket on RTC
+  + Update existing tickets on original trackers
+  + Sync planing from RTC to original trackers
+
+- Trackers (authentications, projects,...) are configurable in JSON file
+
+- Filter|Condition|Query to select tickets are configurable in for each tracker in JSON file.
+  Support negative (NOT, !) Condition
+
+Details:
+--------
+1. Sync data: attributes
+
+   +------------------+-----------+----------------------+----------+
+   | Original tracker | Direction | Destination tracker  | Stage    |
+   +==================+===========+======================+==========+
+   | Title            |     ->    | Title                | New      |
+   +------------------+-----------+----------------------+----------+
+   | URL              |     ->    | Description          | New      |
+   +------------------+-----------+----------------------+----------+
+   | Assignee         |     ->    | Assignee             | New      |
+   +------------------+-----------+----------------------+----------+
+   | Component        |     ->    | Component            | New      |
+   +------------------+-----------+----------------------+----------+
+   | Status           |     ->    | Status               | New/Sync |
+   +------------------+-----------+----------------------+----------+
+   | Title            |     <-    | ID                   | New      |
+   +------------------+-----------+----------------------+----------+
+   | Story point      |     <-    | Story point          | Sync     |
+   +------------------+-----------+----------------------+----------+
+   | Version          |     <-    | Sprint/Version       | Sync     |
+   +------------------+-----------+----------------------+----------+
+
+2. Attributes mapping on trackers:
+
+   +------------------+------------------+------------------+------------------+------------------+
+   | Name             | Github           | Gitlab           | JIRA             | RTC              |
+   +==================+==================+==================+==================+==================+
+   | Title            | Title            | Title            | Title            | Title            |
+   +------------------+------------------+------------------+------------------+------------------+
+   | URL              | URL              | URL              | URL              | URL              |
+   +------------------+------------------+------------------+------------------+------------------+
+   | Assignee         | Assignee         | Assignee         | Assignee         | Owner            |
+   +------------------+------------------+------------------+------------------+------------------+
+   | Component        | Repository       | Repository       | Component        | Component        |
+   +------------------+------------------+------------------+------------------+------------------+
+   | Status           | Status           | Status           | Status           | Status           |
+   +------------------+------------------+------------------+------------------+------------------+
+   | Story point      | Labels           | Labels           | Story point      | Story point      |
+   +------------------+------------------+------------------+------------------+------------------+
+   | Version          | Labels           | Labels           | Version          | Version          |
+   +------------------+------------------+------------------+------------------+------------------+
+
+3. JSON configuration file
+
+- Tracker configuration:
+
+  + Github:
+
+    * Project
+    * Token
+    * Repository
+    * Allow condition
+
+  + Gitlab
+  + JIRA
+  + RTC
+
+- User configuration

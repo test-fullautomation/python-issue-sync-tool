@@ -1,0 +1,30 @@
+<rdf:RDF 
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" 
+   xmlns:dcterms="http://purl.org/dc/terms/" 
+   xmlns:rtc_ext="http://jazz.net/xmlns/prod/jazz/rtc/ext/1.0/" 
+   xmlns:oslc="http://open-services.net/ns/core#" 
+   xmlns:acp="http://jazz.net/ns/acp#"
+   xmlns:oslc_cm="http://open-services.net/ns/cm#" 
+   xmlns:oslc_cmx="http://open-services.net/ns/cm-x#" 
+   xmlns:oslc_pl="http://open-services.net/ns/pl#" 
+   xmlns:acc="http://open-services.net/ns/core/acc#" 
+   xmlns:rtc_cm="http://jazz.net/xmlns/prod/jazz/rtc/cm/1.0/"
+   xmlns:process="http://jazz.net/ns/process#">
+   <rdf:Description rdf:nodeID="A0">
+      <dcterms:title rdf:parseType="Literal">{title}</dcterms:title>
+      <rtc_ext:com.ibm.team.workitem.attribute.storyPointsNumeric rdf:datatype="http://www.w3.org/2001/XMLSchema#integer">{story_point}</rtc_ext:com.ibm.team.workitem.attribute.storyPointsNumeric>
+      <dcterms:contributor rdf:resource="{hostname}/jts/users/{assignee}" />
+      <dcterms:description rdf:parseType="Literal">{description}</dcterms:description>
+      <oslc_cm:status rdf:datatype="http://www.w3.org/2001/XMLSchema#string">{state}</oslc_cm:status>
+      <rtc_ext:contextId rdf:datatype="http://www.w3.org/2001/XMLSchema#string">{project_id}</rtc_ext:contextId>
+      <rtc_cm:subscribers rdf:resource="{hostname}/jts/users/{user_id}" />
+      <rtc_cm:type rdf:resource="{hostname}/ccm/oslc/types/{project_id}/com.ibm.team.apt.workItemType.story" />
+      <rtc_cm:repository rdf:resource="{hostname}/ccm/oslc/repository" />
+      <rtc_cm:filedAgainst rdf:resource="{hostname}/ccm/resource/itemOid/com.ibm.team.workitem.Category/{filed_against}" />
+      <acp:accessControl rdf:resource="{hostname}/ccm/oslc/access-control/{project_id}" />
+      <oslc_cmx:project rdf:resource="{hostname}/ccm/oslc/projectareas/{project_id}" />
+      <oslc:serviceProvider rdf:resource="{hostname}/ccm/oslc/contexts/{project_id}/workitems/services" />
+      <process:projectArea rdf:resource="{hostname}/ccm/process/project-areas/{project_id}" />
+      <dcterms:creator rdf:resource="{hostname}/jts/users/{user_id}" />
+   </rdf:Description>
+</rdf:RDF>

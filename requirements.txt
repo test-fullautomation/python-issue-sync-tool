@@ -1,0 +1,9 @@
+PyGithub
+jira
+python-gitlab
+jsonschema
+lxml
+requests
+colorama
+GenPackageDoc
+PythonExtensionsCollection
