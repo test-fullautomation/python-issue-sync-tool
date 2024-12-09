@@ -135,11 +135,3 @@ class RTCClient():
          return response.json()['dcterms:identifier']
       else:
          raise Exception(f"Failed to create RTC work item: {response.status_code}, {response.text}")
-
-if __name__ == "__main__":
-   rtc = RTCClient("https://rb-alm-20-d.de.bosch.com", "GM-VCU_old", "ntd1hc", "bnRkMWhjOk1hdGtoYXVtb2lUMTAyMDI0")
-   res = rtc.get_workitem(619562)
-   print(res)
-   id = rtc.create_workitem("Imported workitem by sync-tool",
-                            "Ticket content")
-   print(id)

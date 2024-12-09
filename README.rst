@@ -104,15 +104,16 @@ The usage should be showed as below:
 
 ::
 
-   usage: IssueSyncTool (Tickets Sync Tool) [-h] [-v] [--config CONFIG] [--dryrun]
+   usage: IssueSyncTool (Tickets Sync Tool) [-h] --config CONFIG [--dryrun] [--csv] [-v]
 
    IssueSyncTool sync ticket|issue|workitem between tracking systems such as Github Issue, JIRA and IBM RTC
 
    optional arguments:
    -h, --help       show this help message and exit
-   -v, --version    version of the IssueSyncTool.
-   --config CONFIG  path to configuration json file.
-   --dryrun         if set, then just dump the tickets without syncing.
+   --config CONFIG  path to configuration json file
+   --dryrun         if set, then just dump the tickets without syncing
+   --csv            if set, then store the sync status to csv file sync_status.csv
+   -v, --version    version of the IssueSyncTool
 
 Example
 ~~~~~~~

@@ -160,18 +160,24 @@ Write error message to console/file output.
          cls.log(f"{sys.argv[0]} has been stopped!", cls.color_error)
          exit(1)
 
+def write_csv_files(filename, list_line):
+   with open(filename, 'w') as fh:
+      fh.writelines(list_line)
+
 def process_cli_argument():
    cli_parser = ArgumentParser(prog="IssueSyncTool (Tickets Sync Tool)",
                                description="IssueSyncTool sync ticket|issue|workitem "+
                                            "between tracking systems such as "+
                                            "Github Issue, JIRA and IBM RTC")
+   cli_parser.add_argument('--config', type=str, required=True,
+                           help='path to configuration json file')
+   cli_parser.add_argument('--dryrun', action="store_true", 
+                           help='if set, then just dump the tickets without syncing')
+   cli_parser.add_argument('--csv', action="store_true", 
+                           help='if set, then store the sync status to csv file sync_status.csv')
    cli_parser.add_argument('-v', '--version', action='version',
                            version=f"v{VERSION} ({VERSION_DATE})",
-                           help='version of the IssueSyncTool.')
-   cli_parser.add_argument('--config', type=str,
-                           help='path to configuration json file.')
-   cli_parser.add_argument('--dryrun', action="store_true", 
-                           help='if set, then just dump the tickets without syncing.')
+                           help='version of the IssueSyncTool')
 
    return cli_parser.parse_args()
 
@@ -205,6 +211,9 @@ def sync_data(source_issue, dest_issue):
    pass
 
 def SyncIssue():
+   csv_content = list()
+   csv_file = "sync_status.csv"
+   csv_content.append("No., Ticket, Source Link, Destination ID, Stage\n")
    args = process_cli_argument()
    Logger.config(dryrun=args.dryrun)
 
@@ -235,6 +244,7 @@ def SyncIssue():
       list_issue = tracker.get_tickets(**config['tracker'][source]['condition'])
 
       for issue in list_issue:
+         issue_counter += 1
          Logger.log(issue.__str__(), indent=2)
          assignee = None
          if isinstance(issue.assignee, str):
@@ -244,29 +254,37 @@ def SyncIssue():
          
          if issue.is_synced_issue():
             # update original issue on source tracker with planing from destination
-            dest_issue = des_tracker.get_ticket(issue.destination_id)
-            # Update source issue
-            Logger.log(f"Updating {source.title()} issue {issue.id} (under develop) ... ", indent=4)
-            # Update destination issue
-            Logger.log(f"Updating {config['destination'][0].title()} issue {dest_issue.id} (under develop) ... ", indent=4)
-            sync_issue += 1
+            try:
+               dest_issue = des_tracker.get_ticket(issue.destination_id)
+               csv_content.append(f"{issue_counter}, {issue.tracker.title()} {issue.id}, {issue.url}, {config['destination'][0]} {issue.destination_id}, synced\n")
+               # Update source issue
+               Logger.log(f"Updating {source.title()} issue {issue.id} (under develop) ... ", indent=4)
+               # Update destination issue
+               Logger.log(f"Updating {config['destination'][0].title()} issue {issue.destination_id} (under develop) ... ", indent=4)
+               sync_issue += 1
+            except Exception:
+               csv_content.append(f"{issue_counter}, {issue.tracker.title()} {issue.id}, {issue.url}, {config['destination'][0]} {issue.destination_id}, not found\n")
+               Logger.log_warning(f"{config['destination'][0].title()} issue {issue.destination_id} cannot be found.", indent=4)
+            
          else:
+            res_id = ""
             # create new issue on destination tracker
             if not args.dryrun:
                res_id = des_tracker.create_ticket(title=issue.title,
-                                                   description=issue.url,
-                                                   assignee=assignee.id[config['destination'][0]]
-                                                )
+                                                  description=issue.url,
+                                                  assignee=assignee.id[config['destination'][0]])
+               
                issue.update(title=f"[ {res_id} ] {issue.title}")
                Logger.log(f"Created new {config['destination'][0].title()} issue with ID {res_id}", indent=4)
 
+            csv_content.append(f"{issue_counter}, {issue.tracker.title()} {issue.id}, {issue.url}, {config['destination'][0]} {res_id}, new\n")
             new_issue += 1
-         
-         issue_counter += 1
 
       Logger.log(f"{new_issue + sync_issue} {source.title()} issues has been synced (includes {new_issue} new creation) to {config['destination'][0]} successfully!\n", indent=2)      
    
    Logger.log(f"Total {issue_counter} issues has been synced to {config['destination'][0]} successfully!")
+   if args.csv:
+      write_csv_files(csv_file, csv_content)
 
 if __name__ == "__main__":
    SyncIssue()

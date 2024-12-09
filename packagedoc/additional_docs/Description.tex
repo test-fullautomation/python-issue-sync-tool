@@ -12,4 +12,177 @@
 % See the License for the specific language governing permissions and
 % limitations under the License.
 
-(under construction)
+\hypertarget{tool-features}{%
+\section{Tool features}\label{tool-features}}
+
+The \pkg\ facilitates seamless integration and synchronization between multiple 
+issue tracking platforms. The main operations include:
+
+\begin{enumerate}
+   \item Configuration Parsing
+         \begin{itemize}
+            \item Reads the JSON configuration file to understand the 
+                  synchronization scope and behavior.
+         \end{itemize}
+
+   \item Issue Collection
+         \begin{itemize}
+            \item Fetches issues from GitHub, Gitlab and Jira based on the 
+                  specified conditions.
+            \item Uses user mappings to ensure issues are associated correctly 
+                  across platforms.
+         \end{itemize}
+
+   \item Issue Update
+         \begin{itemize}
+            \item Updates the source issues with RTC IDs and planning data after 
+                  synchronization.
+         \end{itemize}
+
+   \item Synchronization to RTC
+         \begin{itemize}
+            \item Creates or updates work items in RTC with the collected issues.
+            \item Includes planning data provided by RTC.
+         \end{itemize}
+\end{enumerate}
+
+\hypertarget{tool-usage}{%
+\section{Tool usage}\label{tool-usage}}
+
+Use below command to get tools's usage:
+
+\begin{pythonlog}
+IssueSyncTool -h
+\end{pythonlog}
+
+The tool's usage should be showed as below:
+
+\begin{pythonlog}
+usage: IssueSyncTool (Tickets Sync Tool) [-h] --config CONFIG [--dryrun] [--csv] [-v]
+
+IssueSyncTool sync ticket|issue|workitem between tracking systems such as Github Issue, JIRA and IBM RTC
+
+optional arguments:
+  -h, --help       show this help message and exit
+  --config CONFIG  path to configuration json file
+  --dryrun         if set, then just dump the tickets without syncing
+  --csv            if set, then store the sync status to csv file sync_status.csv
+  -v, --version    version of the IssueSyncTool
+\end{pythonlog}
+
+Sample command to run \pkg\ with the configuration JSON file and save sync 
+status as csv file:
+
+\begin{pythonlog}
+IssueSyncTool --config <your-config-file> --csv
+\end{pythonlog}
+
+\hypertarget{config-file}{%
+\section{JSON Configuration File}\label{config-file}}
+
+The tool uses a JSON configuration file to define synchronization behavior. 
+Below is an explanation of the sample configuration:
+
+\subsection{Source and Destination Platforms}
+\begin{pythoncode}
+{
+   "source": ["github", "gitlab", jira"],
+   "destination": ["rtc"]
+   ...
+}
+\end{pythoncode}
+This configuration specifies GitHub and Jira as sources and RTC as the 
+destination for synchronization.
+
+\subsection{Tracker Configurations}
+\begin{pythoncode}
+{
+   ...
+   "tracker": {
+      "github": {
+         "project" : "test-fullautomation",
+         "token": "<your-PAT>",
+         "repository": [
+            "python-jsonpreprocessor"
+         ],
+         "condition": {
+            "state": "open",
+            "exclude": {
+               "assignee": "empty",
+               "labels": "0.13.1"
+            }
+         }
+      },
+      ...
+   }
+   ... 
+}
+\end{pythoncode}
+
+Above code is sample configuration of Github tracker which contain the 
+information about:
+
+\begin{itemize}
+    \item \textbf{Project:} Github project \pcode{"test-fullautomation"}
+    \item \textbf{Token:} A personal access token for authentication.
+    \item \textbf{Repositories:} List of repositories to collect issues from.
+    \item \textbf{Condition:} Define the condition (query) to collect the issues.
+          \begin{itemize}
+            \item \pcode{"state"}: Syncs only issues in the specified state, 
+                  e.g., \pcode{"open"}.
+            \item \pcode{"exclude"}: Specifies negative conditions. For example:
+            \begin{itemize}
+               \item \pcode{"assignee": "empty"}: Excludes issues with no assignee.
+               \item \pcode{"labels": "0.13.1"}: Excludes issues labeled \pcode{"0.13.1"}.
+            \end{itemize}
+          \end{itemize}
+\end{itemize}
+
+The other tracker can be configured as the same way.
+
+\subsection{User Mapping}
+User mapping ensures that the correct user is assigned in the synchronization 
+process across different platforms. 
+In the configuration file, each user is mapped to their corresponding accounts 
+across GitHub, Jira, Gitlab and RTC. This mapping helps to ensure that the right 
+assignee is applied to issues in the appropriate tracker system.
+
+\begin{itemize}
+   \item The \texttt{user} section of the configuration file specifies the 
+         mapping between the users' names in GitHub, Gitlab, Jira and RTC. 
+   \item This ensures that the correct user is set as the assignee in each 
+         platform when syncing issues.
+   \item For instance, when syncing an issue from Jira to RTC, the tool will 
+         automatically assign the same user (as per the mapping) to the issue in RTC. 
+   \item If the user has different usernames across platforms 
+         (e.g., "githubUser" in GitHub, "jiraUser" in Jira, and "rtcUser" in RTC), 
+         the tool ensures the correct mapping is applied so that all systems 
+         reflect the same assignee.
+\end{itemize}
+
+Example configuration:
+\begin{pythoncode}
+{
+   ... 
+   "user": [
+      {
+         "name": "Tran Duy Ngoan",
+         "github": "ngoan1608",
+         "jira": "ntd1hc",
+         "gitlab": "ntd1hc",
+         "rtc": "ntd1hc"
+      },
+      ... 
+   ]   
+}
+\end{pythoncode}
+
+In this example:
+\begin{itemize}
+    \item The user \texttt{Tran Duy Ngoan} is mapped to \texttt{ngoan1608} in 
+          GitHub, \texttt{ntd1hc} in Jira, and \texttt{ntd1hc} in RTC.
+    \item When syncing issues between GitHub, Jira, and RTC, the tool ensures 
+          that issues assigned to \texttt{ngoan1608} in GitHub and 
+          \texttt{ntd1hc} in Jira will be assigned to \texttt{ntd1hc} in RTC, 
+          ensuring consistent user data across all platforms.
+\end{itemize}
