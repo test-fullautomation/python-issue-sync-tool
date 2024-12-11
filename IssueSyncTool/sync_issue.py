@@ -271,7 +271,7 @@ def SyncIssue():
             # create new issue on destination tracker
             if not args.dryrun:
                res_id = des_tracker.create_ticket(title=issue.title,
-                                                  description=issue.url,
+                                                  description=f"Original issue url: {issue.url}\n\n{issue.description}",
                                                   assignee=assignee.id[config['destination'][0]])
                
                issue.update(title=f"[ {res_id} ] {issue.title}")
