@@ -3,6 +3,7 @@ import copy
 import urllib3
 from io import BytesIO
 from lxml import etree
+import os
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 def get_xml_tree(file_name, bdtd_validation=True):
@@ -20,36 +21,15 @@ def get_xml_tree(file_name, bdtd_validation=True):
 
 class RTCClient():
    itemName = "itemName/com.ibm.team.workitem.WorkItem"
-   rtc_payload="""
-<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:rtc_ext="http://jazz.net/xmlns/prod/jazz/rtc/ext/1.0/" xmlns:oslc="http://open-services.net/ns/core#" xmlns:acp="http://jazz.net/ns/acp#"
-   xmlns:oslc_cm="http://open-services.net/ns/cm#" xmlns:oslc_cmx="http://open-services.net/ns/cm-x#" xmlns:oslc_pl="http://open-services.net/ns/pl#" xmlns:acc="http://open-services.net/ns/core/acc#" xmlns:rtc_cm="http://jazz.net/xmlns/prod/jazz/rtc/cm/1.0/"
-   xmlns:process="http://jazz.net/ns/process#">
-   <rdf:Description rdf:nodeID="A0">
-      <dcterms:title rdf:parseType="Literal">{title}</dcterms:title>
-      <rtc_ext:com.ibm.team.workitem.attribute.storyPointsNumeric rdf:datatype="http://www.w3.org/2001/XMLSchema#integer">{story_point}</rtc_ext:com.ibm.team.workitem.attribute.storyPointsNumeric>
-      <dcterms:contributor rdf:resource="{hostname}/jts/users/{assignee}" />
-      <dcterms:description rdf:parseType="Literal">{description}</dcterms:description>
-      <oslc_cm:status rdf:datatype="http://www.w3.org/2001/XMLSchema#string">{state}</oslc_cm:status>
-      <rtc_ext:contextId rdf:datatype="http://www.w3.org/2001/XMLSchema#string">{project_id}</rtc_ext:contextId>
-      <rtc_cm:subscribers rdf:resource="{hostname}/jts/users/{user_id}" />
-      <rtc_cm:type rdf:resource="{hostname}/ccm/oslc/types/{project_id}/com.ibm.team.apt.workItemType.story" />
-      <rtc_cm:repository rdf:resource="{hostname}/ccm/oslc/repository" />
-      <rtc_cm:filedAgainst rdf:resource="{hostname}/ccm/resource/itemOid/com.ibm.team.workitem.Category/_Oz1a_XSkEe-1dO3tmL5PWA" />
-      <acp:accessControl rdf:resource="{hostname}/ccm/oslc/access-control/{project_id}" />
-      <oslc_cmx:project rdf:resource="{hostname}/ccm/oslc/projectareas/{project_id}" />
-      <oslc:serviceProvider rdf:resource="{hostname}/ccm/oslc/contexts/{project_id}/workitems/services" />
-      <process:projectArea rdf:resource="{hostname}/ccm/process/project-areas/{project_id}" />
-      <dcterms:creator rdf:resource="{hostname}/jts/users/{user_id}" />
-   </rdf:Description>
-</rdf:RDF>"""
-
-   def __init__(self, hostname, project, username, token):
-      self.hostname = hostname
+   
+   def __init__(self, hostname, project, username, token, file_against=None):
+      self.hostname = hostname[:-1] if hostname.endswith("/") else hostname
       self.user = username
       self.project = {
          "name": project,
          "id": ""
       }
+      self.file_against = file_against
       self.session = requests.Session()
       self.headers = {
          "Content-Type": "application/xml", 
@@ -58,6 +38,7 @@ class RTCClient():
          "Authorization" : f"Basic {token}"
       }
       self.session.headers = self.headers
+      self.templates_dir = os.path.join(os.path.dirname(__file__),'rtc-templates')
       
       self.login()
 
@@ -79,6 +60,39 @@ class RTCClient():
                break
       if not bSuccess:
          raise Exception(f"Could not find project with name '{self.project['name']}'")
+
+   def _get_filedAgainst(self, url, fileAgainst_name):
+      res = self.session.get(url, allow_redirects=True, verify=False)
+      if res.status_code == 200:
+         try:
+            obj_res = res.json()
+            for result in obj_res['oslc:results']:
+               fileAgainst_title = None
+               if 'dc:title' in result:
+                  fileAgainst_title = result['dc:title']
+               elif 'rtc_cm:hierarchicalName' in result:
+                  fileAgainst_title = result['rtc_cm:hierarchicalName']
+               if fileAgainst_name == fileAgainst_title:
+                  return result['rdf:about']
+
+            if 'oslc:nextPage' in obj_res['oslc:responseInfo'] and obj_res['oslc:responseInfo']['oslc:nextPage']:
+               return self._get_filedAgainst(obj_res['oslc:responseInfo']['oslc:nextPage'], fileAgainst_name)
+         except Exception as reason:
+            raise Exception(f"Error when not parsing fileAgainst response")
+      else:
+         raise Exception(f"Failed to request to get fileAgainst, url: '{url}'")
+      return None
+
+   def get_filedAgainst(self, fileAgainst_name, project_id=None):
+      if not project_id:
+         project_id = self.project['id']
+      url = f"{self.hostname}/ccm/oslc/categories?projectURL={self.hostname}/ccm/process/project-areas/{project_id}&oslc.select=dc:title,rdfs:member,rtc_cm:hierarchicalName"
+      
+      fileAgainst_url = self._get_filedAgainst(url, fileAgainst_name)
+      if not fileAgainst_url:
+         raise Exception(f"Could not found fileAgainst '{fileAgainst_name}'")
+
+      return fileAgainst_url
 
    def login(self):
       """Authenticate and establish a session with RTC."""
@@ -110,7 +124,7 @@ class RTCClient():
       else:
             raise Exception(f"Failed to update work item: {response.status_code}")
 
-   def create_workitem(self, title, description, assignee=None, project_id=None, **kwargs):
+   def create_workitem(self, title, description, file_against=None, assignee=None, project_id=None, **kwargs):
       if not project_id:
          project_id = self.project['id']
       user_id = self.user
@@ -118,9 +132,21 @@ class RTCClient():
       if not assignee:
          assignee = self.user
 
+      if file_against:
+         filed_against = self.get_filedAgainst(file_against)
+      elif self.file_against:
+         filed_against = self.get_filedAgainst(self.file_against)
+      else:
+         raise Exception("file_against is required to create RTC workitem")
+
       state = "New"
       story_point = "0"
-      req_payload = self.rtc_payload.format(**locals())
+
+      workitem_template = None
+      with open(os.path.join(self.templates_dir ,'workitem.xml')) as fh:
+         workitem_template = fh.read()
+
+      req_payload = workitem_template.format(**locals())
 
       req_url = f"{self.hostname}/ccm/oslc/contexts/{project_id}/workitems/com.ibm.team.apt.workItemType.story"
 
@@ -135,3 +161,4 @@ class RTCClient():
          return response.json()['dcterms:identifier']
       else:
          raise Exception(f"Failed to create RTC work item: {response.status_code}, {response.text}")
+

@@ -395,10 +395,10 @@ class RTCTracker(TrackerService):
                      issue_client=self.tracker_client
                      ) for issue in issues]
    
-   def connect(self, project: str, hostname: str, username: Union[list, str] = None, password: str= None, token: str= None, proxy: str = None):
+   def connect(self, project: str, hostname: str, username: Union[list, str] = None, password: str= None, token: str= None, file_against: str = None):
       self.project = project
       self.hostname = hostname
-      self.tracker_client = RTCClient(hostname, project, username, token)
+      self.tracker_client = RTCClient(hostname, project, username, token, file_against)
 
    def get_ticket(self, id: Union[str, int]) -> Ticket:
       ticket = self.tracker_client.get_workitem(id)

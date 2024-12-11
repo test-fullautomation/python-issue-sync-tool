@@ -88,7 +88,7 @@ CONFIG_SCHEMA = {
                   "password": {"type": "string"},
                   "username": {"type": "string"},
                   "token": {"type": "string"},
-                  "proxy": {"type": "string"},
+                  "file_against": {"type": "string"},
                   "condition": {
                      "$ref": "#/$defs/rtc_condition",
                      "exclude": {
