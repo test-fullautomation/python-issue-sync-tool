@@ -7,6 +7,53 @@ from datetime import datetime
 from typing import Union, Optional, Callable
 import re
 
+class Status:
+   STATUS_MAPPING = {
+      "github": {
+         "open": "Open",
+         "closed": "Closed"
+      },
+      "gitlab": {
+         "open": "Open",
+         "closed": "Closed"
+      },
+      "jira": {
+         "Open": "Open",
+         "In Progress": "In Progress",
+         "Closed": "Closed"
+      },
+      "rtc": {
+         "New": "Open",
+         "In Development": "In Progress",
+         "Done": "Closed"
+      }
+   }
+   
+   open = "Open"
+   inProgress = "In Progress"
+   closed = "Closed"
+
+   @staticmethod
+   def normalize_issue_status(tracker_type, native_status):
+      if tracker_type not in Status.STATUS_MAPPING.keys():
+         raise Exception(f"Not support tracker type {tracker_type}")
+      
+      if native_status not in Status.STATUS_MAPPING[tracker_type].keys():
+         raise Exception(f"Not support status {native_status} for {tracker_type.tittle()} issue")
+      
+      return Status.STATUS_MAPPING[tracker_type][native_status]
+   
+   @staticmethod
+   def get_native_status(tracker_type, normalized_status):
+      if tracker_type not in Status.STATUS_MAPPING.keys():
+         raise Exception(f"Not support tracker type {tracker_type}")
+      
+      if normalized_status not in Status.STATUS_MAPPING[tracker_type].values():
+         raise Exception(f"Unknown status {normalized_status}")
+      
+      for key, val in Status.STATUS_MAPPING[tracker_type].items():
+         if val == normalized_status: return key 
+
 class Ticket():
    """
    Normalized Ticket with required information for syncing between trackers
@@ -157,7 +204,7 @@ class JiraTracker(TrackerService):
                      issue.raw['fields']['description'],
                      issue.raw['fields']['assignee']['name'],
                      f"{self.hostname}/browse/{issue.key}",
-                     issue.raw['fields']['status']['name'],
+                     Status.normalize_issue_status(self.TYPE, issue.raw['fields']['status']['name']),
                      issue_client=issue
                      ) for issue in issues]
 
@@ -219,7 +266,7 @@ class GithubTracker(TrackerService):
                     issue.body,
                     [assignee.login for assignee in issue.assignees],
                     issue.html_url,
-                    issue.state,
+                    Status.normalize_issue_status(self.TYPE, issue.state),
                     repo,
                     labels=[label.name for label in issue.labels],
                     issue_client=issue)
@@ -299,7 +346,7 @@ class GitlabTracker(TrackerService):
                     issue.description,
                     issue.assignee['username'],
                     issue.web_url,
-                    issue.state,
+                    Status.normalize_issue_status(self.TYPE, issue.state),
                     project,
                     labels=issue.labels,
                     issue_client=issue)
@@ -370,6 +417,7 @@ class GitlabTracker(TrackerService):
    
 class RTCTracker(TrackerService):
    TYPE = "rtc"
+
    def __init__(self):
       super().__init__()
       self.project = None
@@ -390,8 +438,9 @@ class RTCTracker(TrackerService):
                      issue['dcterms:description'],
                      issue['dcterms:contributor']['rdf:resource'],
                      issue['rdf:about'],
-                     issue['oslc_cm:status'],
+                     Status.normalize_issue_status(self.TYPE, issue['oslc_cm:status']),
                      story_point=issue['rtc_ext:com.ibm.team.workitem.attribute.storyPointsNumeric'],
+                     version=self.get_plannedFor(issue),
                      issue_client=self.tracker_client
                      ) for issue in issues]
    
@@ -407,6 +456,39 @@ class RTCTracker(TrackerService):
    def get_tickets(self, **kwargs) -> list[Ticket]:
       pass
 
+   def get_plannedFor(self, issue: Ticket):
+      if 'rtc_cm:plannedFor' in issue and 'rdf:resource' in issue['rtc_cm:plannedFor']:
+         try:
+            plannedFor = self.tracker_client.get_info_from_url(issue['rtc_cm:plannedFor']['rdf:resource'], 'dcterms:title')
+            return plannedFor
+         except:
+            return ""
+      return ""
+   
+   def update_ticket_state(self, issue, new_state):
+      print(f"update_ticket_state: {issue.id} {new_state}")
+      if issue.status == Status.open:
+         if new_state == Status.inProgress:
+            self.tracker_client.update_workitem_action(issue.id, "startWorking")
+         if new_state == Status.closed:
+            self.tracker_client.update_workitem_action(issue.id, "startWorking")
+            self.tracker_client.update_workitem_action(issue.id, "completeDevelopment")
+            self.tracker_client.update_workitem_action(issue.id, "accept")
+      elif issue.status == Status.inProgress:
+         if new_state == Status.open:
+            self.tracker_client.update_workitem_action(issue.id, "defer")
+         if new_state == Status.closed:
+            self.tracker_client.update_workitem_action(issue.id, "completeDevelopment")
+            self.tracker_client.update_workitem_action(issue.id, "accept")
+      elif issue.status == Status.closed:
+         if new_state == Status.inProgress:
+            self.tracker_client.update_workitem_action(issue.id, "reopen")
+         if new_state == Status.open:
+            self.tracker_client.update_workitem_action(issue.id, "reopen")
+            self.tracker_client.update_workitem_action(issue.id, "defer")
+      else:
+         raise NotImplemented(f"Does not support status change from '{issue.status}'")
+   
    def create_ticket(self, **kwargs) -> str:
       return self.tracker_client.create_workitem(**kwargs)
 

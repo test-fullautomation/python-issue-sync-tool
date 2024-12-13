@@ -21,6 +21,10 @@ def get_xml_tree(file_name, bdtd_validation=True):
 
 class RTCClient():
    itemName = "itemName/com.ibm.team.workitem.WorkItem"
+   xml_attr_mapping = {
+      "title": "oslc_cm:ChangeRequest//dcterms:title",
+      "description": "oslc_cm:ChangeRequest//dcterms:description"
+   }
    
    def __init__(self, hostname, project, username, token, file_against=None):
       self.hostname = hostname[:-1] if hostname.endswith("/") else hostname
@@ -94,6 +98,17 @@ class RTCClient():
 
       return fileAgainst_url
 
+   def get_info_from_url(self, url, info):
+      res = self.session.get(url, allow_redirects=True, verify=False)
+      if res.status_code == 200:
+         res_data = res.json()
+         if info in res_data:
+            return res_data[info]
+         else:
+            raise Exception(f"Could not get '{info}' from response of url '{url}'.")
+      else:
+         raise Exception(f"Request to url '{url}' unsuccessfully. Reason: {res.reason}")
+      
    def login(self):
       """Authenticate and establish a session with RTC."""
       url = f"{self.hostname}/ccm/authenticated/identity"
@@ -109,7 +124,7 @@ class RTCClient():
       # headers["Accept"] = "application/json"
       # req_url = f"{self.hostname}/ccm/resource/{self.itemName}/{ticket_id}"
       req_url = f"{self.hostname}/ccm/oslc/workitems/{ticket_id}"
-      response = requests.get(req_url, headers=headers, verify=False)
+      response = self.session.get(req_url, headers=headers, verify=False)
       if response.status_code == 200:
          return response.json()
       else:
@@ -117,12 +132,59 @@ class RTCClient():
 
    def update_workitem(self, ticket_id, **kwargs):
       url = f"{self.hostname}/ccm/oslc/workitems/{ticket_id}"
-      updates = {}
-      response = self.session.put(url, json=updates, headers=self.headers)
-      if response.status_code in [200, 204]:
-            print("Work item updated successfully.")
+      headers = copy.deepcopy(self.headers)
+      headers["Accept"] = "application/xml"
+      res = self.session.get(url, headers=headers, verify=False)
+      if res.status_code == 200:
+         oWorkItem = get_xml_tree(BytesIO(str(res.text).encode()), bdtd_validation=False)
+         nsmap = oWorkItem.getroot().nsmap
+
+         for attr, val in kwargs.items():
+            if attr not in self.xml_attr_mapping:
+               raise Exception(f"Does not support to update workitem '{attr}")
+            oAttr = oWorkItem.find(self.xml_attr_mapping[attr], nsmap)
+            oAttr.text = val
+
+         update_res = self.session.put(url, allow_redirects=True, verify=False, data=etree.tostring(oWorkItem))
+         if update_res.status_code not in [200, 204]:
+            raise Exception(f"Failed to update work item: {update_res.status_code}. Reason: {update_res.reason}")
       else:
-            raise Exception(f"Failed to update work item: {response.status_code}")
+         raise Exception(f"Failed to get work item: {update_res.status_code} for update")
+
+   def update_workitem_state(self, ticket_id, current_state, new_state):
+      # States transitions" "New" <-> "In Development" <-> "In Test" <-> "Done"
+
+      mapping_action = {
+         "startWorking": [ "New", "In Development"],
+         "completeDevelopment": ["In Development", "In Test"],
+         "accept": ["In Test", "Done"],
+         "reopen": ["Done", "In Development"],
+         "reject": ["In Test", "In Development"],
+         "defer": ["In Development", "New"]
+      }
+      req_action = None
+      for action, states in mapping_action:
+         if current_state.lower() == states[0].lower() and new_state.lower() == states[1].lower():
+            req_action = action
+            break
+      if not req_action:
+         raise Exception(f"Could not found the proper action to change state from '{current_state}' to '{new_state}'")
+      
+      return self.update_workitem_action(ticket_id, req_action)
+      
+   def update_workitem_action(self, ticket_id, action):
+      # print(f"update_workitem_action: {ticket_id} {action}")
+      headers = copy.deepcopy(self.headers)
+      headers["Accept"] = "application/xml"
+      workitem_url = f"{self.hostname}/ccm/oslc/workitems/{ticket_id}"
+      res = self.session.get(workitem_url, allow_redirects=True, verify=False, headers=headers)
+      if res.status_code != 200:
+         raise Exception(f"Could not found workitem {ticket_id}")
+      
+      action_res = self.session.put(f"{workitem_url}?_action=com.ibm.team.apt.storyWorkflow.action.{action}", 
+                                    allow_redirects=True, verify=False, headers=headers, data=res.text)
+      if action_res.status_code != 200:
+         raise Exception(f"Failed in requesting to change state of workitem {ticket_id}")
 
    def create_workitem(self, title, description, file_against=None, assignee=None, project_id=None, **kwargs):
       if not project_id:

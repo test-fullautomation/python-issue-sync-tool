@@ -194,7 +194,26 @@ def process_configuration(path_file):
    else:
       Logger.log_error(f"Given configuration JSON is not existing: '{path_file}'.", fatal_error=True)
 
-def sync_data(source_issue, dest_issue):
+def process_new_issue(issue, des_tracker, assignee):
+   """
+   Process to create new issue on destination tracker and update original issue's
+   title with destination issue's id.
+
+   - New issue's description is consist of original issue url and its description.
+   - Assignee is get from
+   """
+   issue_desc = f"Original issue url: {issue.url}\n\n{issue.description}"
+
+   res_id = des_tracker.create_ticket(title=issue.title,
+                                      description=issue_desc,
+                                      assignee=assignee.id[des_tracker.TYPE])
+   
+   issue.update(title=f"[ {res_id} ] {issue.title}")
+
+   Logger.log(f"Created new {des_tracker.TYPE.title()} issue with ID {res_id}", indent=4)
+   return res_id
+
+def process_sync_issues(issue, des_tracker):
    """
    Update source (original) issue due to information from appropriate destination one.
 
@@ -208,7 +227,15 @@ def sync_data(source_issue, dest_issue):
    Defined sync attributes:
      - `Status`: status is synced from original ticket, not allow to update directly on destination tracker
    """
-   pass
+   dest_issue = des_tracker.get_ticket(issue.destination_id)
+   # Update source issue
+   Logger.log(f"Updating {issue.tracker.title()} issue {issue.id} (under develop) ... ", indent=4)
+   Logger.log(f"Updating {issue.tracker.title()} issue {issue.id}: set 'story point' to '{dest_issue.story_point}'", indent=6)
+   Logger.log(f"Updating {issue.tracker.title()} issue {issue.id}: set 'version' to '{dest_issue.version}'", indent=6)
+   # Update destination issue
+   Logger.log(f"Updating {dest_issue.tracker.title()} issue {dest_issue.id}:", indent=4)
+   Logger.log(f"Syncing 'Status': change from '{dest_issue.status}' to '{issue.status}'", indent=6)
+   des_tracker.update_ticket_state(dest_issue, issue.status)
 
 def SyncIssue():
    csv_content = list()
@@ -255,12 +282,9 @@ def SyncIssue():
          if issue.is_synced_issue():
             # update original issue on source tracker with planing from destination
             try:
-               dest_issue = des_tracker.get_ticket(issue.destination_id)
+               if not args.dryrun:
+                  process_sync_issues(issue, des_tracker)
                csv_content.append(f"{issue_counter}, {issue.tracker.title()} {issue.id}, {issue.url}, {config['destination'][0]} {issue.destination_id}, synced\n")
-               # Update source issue
-               Logger.log(f"Updating {source.title()} issue {issue.id} (under develop) ... ", indent=4)
-               # Update destination issue
-               Logger.log(f"Updating {config['destination'][0].title()} issue {issue.destination_id} (under develop) ... ", indent=4)
                sync_issue += 1
             except Exception:
                csv_content.append(f"{issue_counter}, {issue.tracker.title()} {issue.id}, {issue.url}, {config['destination'][0]} {issue.destination_id}, not found\n")
@@ -270,13 +294,8 @@ def SyncIssue():
             res_id = ""
             # create new issue on destination tracker
             if not args.dryrun:
-               res_id = des_tracker.create_ticket(title=issue.title,
-                                                  description=f"Original issue url: {issue.url}\n\n{issue.description}",
-                                                  assignee=assignee.id[config['destination'][0]])
+               res_id = process_new_issue(issue, des_tracker, assignee)
                
-               issue.update(title=f"[ {res_id} ] {issue.title}")
-               Logger.log(f"Created new {config['destination'][0].title()} issue with ID {res_id}", indent=4)
-
             csv_content.append(f"{issue_counter}, {issue.tracker.title()} {issue.id}, {issue.url}, {config['destination'][0]} {res_id}, new\n")
             new_issue += 1
 
@@ -288,4 +307,3 @@ def SyncIssue():
 
 if __name__ == "__main__":
    SyncIssue()
-
