@@ -466,7 +466,6 @@ class RTCTracker(TrackerService):
       return ""
    
    def update_ticket_state(self, issue, new_state):
-      print(f"update_ticket_state: {issue.id} {new_state}")
       if issue.status == Status.open:
          if new_state == Status.inProgress:
             self.tracker_client.update_workitem_action(issue.id, "startWorking")
@@ -492,8 +491,8 @@ class RTCTracker(TrackerService):
    def create_ticket(self, **kwargs) -> str:
       return self.tracker_client.create_workitem(**kwargs)
 
-   def update_ticket(self, ticket: Ticket):
-      pass
+   def update_ticket(self, ticket_id: str, **kwargs):
+      self.tracker_client.update_workitem(ticket_id, **kwargs)
 
 class Tracker():
    SUPPORT_TRACKER = ["github", "jira", "rtc"]

@@ -213,7 +213,7 @@ def process_new_issue(issue, des_tracker, assignee):
    Logger.log(f"Created new {des_tracker.TYPE.title()} issue with ID {res_id}", indent=4)
    return res_id
 
-def process_sync_issues(issue, des_tracker):
+def process_sync_issues(issue, dest_issue, des_tracker):
    """
    Update source (original) issue due to information from appropriate destination one.
 
@@ -234,8 +234,10 @@ def process_sync_issues(issue, des_tracker):
    Logger.log(f"Updating {issue.tracker.title()} issue {issue.id}: set 'version' to '{dest_issue.version}'", indent=6)
    # Update destination issue
    Logger.log(f"Updating {dest_issue.tracker.title()} issue {dest_issue.id}:", indent=4)
-   Logger.log(f"Syncing 'Status': change from '{dest_issue.status}' to '{issue.status}'", indent=6)
+   Logger.log(f"Syncing 'Status'... (change from '{dest_issue.status}' to '{issue.status}')", indent=6)
    des_tracker.update_ticket_state(dest_issue, issue.status)
+   Logger.log(f"Syncing 'Description'... ", indent=6)
+   des_tracker.update_ticket(dest_issue.id, description=f"Original issue url: {issue.url}\n\n{issue.description}")
 
 def SyncIssue():
    csv_content = list()
@@ -282,13 +284,16 @@ def SyncIssue():
          if issue.is_synced_issue():
             # update original issue on source tracker with planing from destination
             try:
-               if not args.dryrun:
-                  process_sync_issues(issue, des_tracker)
-               csv_content.append(f"{issue_counter}, {issue.tracker.title()} {issue.id}, {issue.url}, {config['destination'][0]} {issue.destination_id}, synced\n")
-               sync_issue += 1
+               dest_issue = des_tracker.get_ticket(issue.destination_id)
             except Exception:
                csv_content.append(f"{issue_counter}, {issue.tracker.title()} {issue.id}, {issue.url}, {config['destination'][0]} {issue.destination_id}, not found\n")
                Logger.log_warning(f"{config['destination'][0].title()} issue {issue.destination_id} cannot be found.", indent=4)
+               break
+
+            if not args.dryrun:
+               process_sync_issues(issue, dest_issue, des_tracker)
+               csv_content.append(f"{issue_counter}, {issue.tracker.title()} {issue.id}, {issue.url}, {config['destination'][0]} {issue.destination_id}, synced\n")
+               sync_issue += 1
             
          else:
             res_id = ""
