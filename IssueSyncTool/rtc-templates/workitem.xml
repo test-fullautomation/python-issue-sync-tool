@@ -12,7 +12,7 @@
    xmlns:process="http://jazz.net/ns/process#">
    <rdf:Description rdf:nodeID="A0">
       <dcterms:title rdf:parseType="Literal">{title}</dcterms:title>
-      <rtc_ext:com.ibm.team.workitem.attribute.storyPointsNumeric rdf:datatype="http://www.w3.org/2001/XMLSchema#integer">{story_point}</rtc_ext:com.ibm.team.workitem.attribute.storyPointsNumeric>
+      <rtc_ext:com.ibm.team.apt.attribute.complexity rdf:resource="{hostname}/ccm/oslc/enumerations/{project_id}/complexity/{story_point}"/>
       <dcterms:contributor rdf:resource="{hostname}/jts/users/{assignee}" />
       <dcterms:description rdf:parseType="Literal">{description}</dcterms:description>
       <oslc_cm:status rdf:datatype="http://www.w3.org/2001/XMLSchema#string">{state}</oslc_cm:status>

@@ -23,7 +23,8 @@ class RTCClient():
    itemName = "itemName/com.ibm.team.workitem.WorkItem"
    xml_attr_mapping = {
       "title": "oslc_cm:ChangeRequest//dcterms:title",
-      "description": "oslc_cm:ChangeRequest//dcterms:description"
+      "description": "oslc_cm:ChangeRequest//dcterms:description",
+      "story_point": "oslc_cm:ChangeRequest//rtc_ext:com.ibm.team.apt.attribute.complexity",
    }
    
    def __init__(self, hostname, project, username, token, file_against=None):
@@ -45,6 +46,7 @@ class RTCClient():
       self.templates_dir = os.path.join(os.path.dirname(__file__),'rtc-templates')
       
       self.login()
+      self.defined_complexity = self.__get_complexity()
 
    def __get_projectID(self):
       bSuccess = True
@@ -65,7 +67,29 @@ class RTCClient():
       if not bSuccess:
          raise Exception(f"Could not find project with name '{self.project['name']}'")
 
-   def _get_filedAgainst(self, url, fileAgainst_name):
+   def __get_complexity(self, project_id=None):
+      if not project_id:
+         project_id = self.project['id']
+      url = f"{self.hostname}/ccm/oslc/enumerations/{project_id}/complexity"
+
+      res = self.session.get(url, allow_redirects=True, verify=False)
+
+      if res.status_code != 200:
+         raise Exception(f"Failed to request to get complexity, url: '{url}'")
+      
+      complexity_dict = dict()
+      list_complexity = res.json()['oslc:results']
+      for item in list_complexity:
+         complexity_dict[item['dcterms:identifier']] = item['rdf:about']
+
+      return complexity_dict
+   
+   def get_complexity_link(self, story_point, project_id=None):
+      if str(story_point) not in self.defined_complexity.keys():
+         raise Exception(f"Given story point value '{story_point}' is not valid, it should be in {[item for item in self.defined_complexity.keys()]}")
+      return self.defined_complexity[str(story_point)]
+
+   def __get_filedAgainst(self, url, fileAgainst_name):
       res = self.session.get(url, allow_redirects=True, verify=False)
       if res.status_code == 200:
          try:
@@ -80,7 +104,7 @@ class RTCClient():
                   return result['rdf:about']
 
             if 'oslc:nextPage' in obj_res['oslc:responseInfo'] and obj_res['oslc:responseInfo']['oslc:nextPage']:
-               return self._get_filedAgainst(obj_res['oslc:responseInfo']['oslc:nextPage'], fileAgainst_name)
+               return self.__get_filedAgainst(obj_res['oslc:responseInfo']['oslc:nextPage'], fileAgainst_name)
          except Exception as reason:
             raise Exception(f"Error when not parsing fileAgainst response")
       else:
@@ -92,7 +116,7 @@ class RTCClient():
          project_id = self.project['id']
       url = f"{self.hostname}/ccm/oslc/categories?projectURL={self.hostname}/ccm/process/project-areas/{project_id}&oslc.select=dc:title,rdfs:member,rtc_cm:hierarchicalName"
       
-      fileAgainst_url = self._get_filedAgainst(url, fileAgainst_name)
+      fileAgainst_url = self.__get_filedAgainst(url, fileAgainst_name)
       if not fileAgainst_url:
          raise Exception(f"Could not found fileAgainst '{fileAgainst_name}'")
 
@@ -143,7 +167,10 @@ class RTCClient():
             if attr not in self.xml_attr_mapping:
                raise Exception(f"Does not support to update workitem '{attr}")
             oAttr = oWorkItem.find(self.xml_attr_mapping[attr], nsmap)
-            oAttr.text = val
+            if attr == "story_point":
+               oAttr.set("{%s}resource"%nsmap['rdf'], self.get_complexity_link(val))
+            else:
+               oAttr.text = val
 
          update_res = self.session.put(url, allow_redirects=True, verify=False, data=etree.tostring(oWorkItem))
          if update_res.status_code not in [200, 204]:
@@ -186,7 +213,7 @@ class RTCClient():
       if action_res.status_code != 200:
          raise Exception(f"Failed in requesting to change state of workitem {ticket_id}")
 
-   def create_workitem(self, title, description, file_against=None, assignee=None, project_id=None, **kwargs):
+   def create_workitem(self, title, description, story_point=0, file_against=None, assignee=None, project_id=None, **kwargs):
       if not project_id:
          project_id = self.project['id']
       user_id = self.user
@@ -202,7 +229,7 @@ class RTCClient():
          raise Exception("file_against is required to create RTC workitem")
 
       state = "New"
-      story_point = "0"
+      self.get_complexity_link(story_point)
 
       workitem_template = None
       with open(os.path.join(self.templates_dir ,'workitem.xml')) as fh:

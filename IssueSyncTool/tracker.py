@@ -14,7 +14,7 @@ class Status:
          "closed": "Closed"
       },
       "gitlab": {
-         "open": "Open",
+         "opened": "Open",
          "closed": "Closed"
       },
       "jira": {
@@ -39,7 +39,7 @@ class Status:
          raise Exception(f"Not support tracker type {tracker_type}")
       
       if native_status not in Status.STATUS_MAPPING[tracker_type].keys():
-         raise Exception(f"Not support status {native_status} for {tracker_type.tittle()} issue")
+         raise Exception(f"Not support status {native_status} for {tracker_type.title()} issue")
       
       return Status.STATUS_MAPPING[tracker_type][native_status]
    
@@ -189,6 +189,19 @@ class TrackerService(ABC):
                if getattr(issue, key) == value: return False
       return True
 
+   def get_story_point_from_labels(self, labels):
+      """
+      Process to get story point from issue labels.
+      Example of story point labels: `1 point`, `2 points`, ... 
+      """
+      for label in labels:
+         story_point_label = re.match('(\d+)\s*point(s)?', label)
+         if story_point_label:
+            return story_point_label[1]
+
+      return 0
+   
+   
 class JiraTracker(TrackerService):
    TYPE = "jira"
 
@@ -205,6 +218,7 @@ class JiraTracker(TrackerService):
                      issue.raw['fields']['assignee']['name'],
                      f"{self.hostname}/browse/{issue.key}",
                      Status.normalize_issue_status(self.TYPE, issue.raw['fields']['status']['name']),
+                     story_point=self.get_story_point(issue),
                      issue_client=issue
                      ) for issue in issues]
 
@@ -251,6 +265,11 @@ class JiraTracker(TrackerService):
       edit_issue = self.tracker_client.issue(id)
       edit_issue.update(**kwargs)
 
+   def get_story_point(self, issue):
+      if 'timetracking' in issue.raw['fields'] and 'remainingEstimateSeconds' in issue.raw['fields']['timetracking']:
+         return int(issue.raw['fields']['timetracking']['remainingEstimateSeconds']/3600/8)
+      return 0
+
 class GithubTracker(TrackerService):
    TYPE = "github"
 
@@ -269,6 +288,7 @@ class GithubTracker(TrackerService):
                     Status.normalize_issue_status(self.TYPE, issue.state),
                     repo,
                     labels=[label.name for label in issue.labels],
+                    story_point=self.get_story_point_from_labels([label.name for label in issue.labels]),
                     issue_client=issue)
    
    def __get_repository_client(self, repository=None):
@@ -349,6 +369,7 @@ class GitlabTracker(TrackerService):
                     Status.normalize_issue_status(self.TYPE, issue.state),
                     project,
                     labels=issue.labels,
+                    story_point=self.get_story_point_from_labels(issue.labels),
                     issue_client=issue)
    
    def __get_project_client(self, project=None):
