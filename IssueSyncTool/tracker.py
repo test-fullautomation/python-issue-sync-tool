@@ -142,6 +142,8 @@ class TrackerService(ABC):
    """
    Abstraction class of Tracker Service
    """
+   HOUR_PER_STORYPOINT = 8
+
    def __init__(self):
       self.tracker_client = None
    
@@ -200,6 +202,13 @@ class TrackerService(ABC):
             return story_point_label[1]
 
       return 0
+   
+   @classmethod
+   def time_estimate_to_story_point(cls, seconds: int):
+      """
+      Convert given estimated time (as second) to story point
+      """
+      return int(seconds/3600/cls.HOUR_PER_STORYPOINT)
    
    
 class JiraTracker(TrackerService):
@@ -267,7 +276,7 @@ class JiraTracker(TrackerService):
 
    def get_story_point(self, issue):
       if 'timetracking' in issue.raw['fields'] and 'remainingEstimateSeconds' in issue.raw['fields']['timetracking']:
-         return int(issue.raw['fields']['timetracking']['remainingEstimateSeconds']/3600/8)
+         return self.time_estimate_to_story_point(issue.raw['fields']['timetracking']['remainingEstimateSeconds'])
       return 0
 
 class GithubTracker(TrackerService):
@@ -332,7 +341,8 @@ class GithubTracker(TrackerService):
    
    def get_ticket(self, id: int, repository: str = None) -> Ticket:
       gh_repo = self.__get_repository_client(repository)
-      return gh_repo.get_issue(id)
+      issue = gh_repo.get_issue(id)
+      return self.__normalize_issue(issue, gh_repo.name)
 
    def create_ticket(self, repository: str = None, **kwargs) -> str:
       gh_repo = self.__get_repository_client(repository)
@@ -369,7 +379,7 @@ class GitlabTracker(TrackerService):
                     Status.normalize_issue_status(self.TYPE, issue.state),
                     project,
                     labels=issue.labels,
-                    story_point=self.get_story_point_from_labels(issue.labels),
+                    story_point=self.get_story_point(issue),
                     issue_client=issue)
    
    def __get_project_client(self, project=None):
@@ -397,7 +407,8 @@ class GitlabTracker(TrackerService):
    
    def get_ticket(self, id: int, project: str = None) -> Ticket:
       gl_project = self.__get_project_client(project)
-      return gl_project.issues.get(id)
+      issue = gl_project.issues.get(id)
+      return self.__normalize_issue(issue, gl_project.name)
 
    def get_tickets(self, **kwargs) -> Ticket:
       list_issues = list()
@@ -436,6 +447,17 @@ class GitlabTracker(TrackerService):
 
       edit_issue.save()
    
+   def get_story_point(self, issue):
+      # try to get estimated time first
+      try:
+         time_estimate = issue.time_stats()
+         if time_estimate['time_estimate']>0:
+            return self.time_estimate_to_story_point(time_estimate['time_estimate'])
+      except:
+         pass
+
+      # then get story point from labels if time estimate is not given
+      return self.get_story_point_from_labels(issue.labels)
 class RTCTracker(TrackerService):
    TYPE = "rtc"
 
