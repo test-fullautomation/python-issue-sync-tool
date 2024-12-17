@@ -1,0 +1,20 @@
+{
+   "REPOSITORYNAME" : "python-issue-sync-tool",
+   "PACKAGENAME" : "IssueSyncTool",
+   "AUTHOR" : "Tran Duy Ngoan",
+   "AUTHOREMAIL" : "Ngoan.TranDuy@vn.bosch.com",
+   "DESCRIPTION" : "Tool to synchronize issues between trackers (Github Issue, Gitlab Issue, RTC, JIRA)",
+   "LONGDESCRIPTIONCONTENTTYPE" : "text/markdown",
+   "URL" : "https://github.com/test-fullautomation/python-issue-sync-tool",
+   "PROGRAMMINGLANGUAGE" : "Programming Language :: Python :: 3",
+   "LICENCE" : "License :: OSI Approved :: Apache Software License",
+   "OPERATINGSYSTEM" : "Operating System :: OS Independent",
+   "PYTHONREQUIRES" : ">=3.0",
+   "DEVELOPMENTSTATUS" : "Development Status :: 4 - Beta",
+   "INTENDEDAUDIENCE" : "Intended Audience :: Developers",
+   "TOPIC" : "Topic :: Software Development",
+   "INSTALLREQUIRES" : ["lxml","requests","PyGithub", "jira", "python-gitlab", "jsonschema", "colorama"],
+   "PACKAGEDATA" : ["*.pdf", "config/*.json", "rtc-templates/*.xml"],
+   "PACKAGEDOC" : "./packagedoc",
+   "CONSOLESCRIPTS" : ["IssueSyncTool = IssueSyncTool.sync_issue:SyncIssue"]
+}

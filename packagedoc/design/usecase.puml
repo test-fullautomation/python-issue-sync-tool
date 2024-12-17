@@ -1,0 +1,34 @@
+@startuml usecase_diagram
+left to right direction
+
+actor User
+actor Manager
+actor Scheduler
+
+together {
+rectangle "GitHub" as Github
+rectangle "Jira" as Jira
+rectangle "GitLab" as GitLab #lightgray
+}
+
+rectangle "Sync-tool" as tool
+rectangle "RTC" as RTC
+
+Scheduler --> tool: Trigger Sync
+
+User --> Github : Create GitHub Issue
+User --> Jira : Create Jira Issue
+User --> GitLab : Create GitLab Issue
+
+Github --> tool : Collect Issues from Github
+Github <-- tool : Update with RTC ID and planning data
+Jira --> tool : Collect Issues from Jira
+Jira <-- tool : Update with RTC ID and planning data
+GitLab --> tool : Collect Issues from GitLab
+GitLab <-- tool : Update with RTC ID and planning data
+tool --> RTC : Sync all open Issues to RTC
+
+Manager --> RTC : Do planning only in RTC
+RTC --> tool : Provide planning data
+
+@enduml
