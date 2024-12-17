@@ -170,6 +170,7 @@ class RTCClient():
             if attr == "story_point":
                oAttr.set("{%s}resource"%nsmap['rdf'], self.get_complexity_link(val))
             else:
+               oAttr.clear()
                oAttr.text = val
 
          update_res = self.session.put(url, allow_redirects=True, verify=False, data=etree.tostring(oWorkItem))

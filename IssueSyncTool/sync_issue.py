@@ -214,7 +214,7 @@ def process_new_issue(issue, des_tracker, assignee):
    Logger.log(f"Created new {des_tracker.TYPE.title()} issue with ID {res_id}", indent=4)
    return res_id
 
-def process_sync_issues(issue, dest_issue, des_tracker):
+def process_sync_issues(org_issue, org_tracker, dest_issue, des_tracker):
    """
    Update source (original) issue due to information from appropriate destination one.
 
@@ -228,18 +228,24 @@ def process_sync_issues(issue, dest_issue, des_tracker):
    Defined sync attributes:
      - `Status`: status is synced from original ticket, not allow to update directly on destination tracker
    """
-   dest_issue = des_tracker.get_ticket(issue.destination_id)
-   # Update source issue
-   Logger.log(f"Updating {issue.tracker.title()} issue {issue.id} (under develop) ... ", indent=4)
-   Logger.log(f"Updating {issue.tracker.title()} issue {issue.id}: set 'version' to '{dest_issue.version}'", indent=6)
+   dest_issue = des_tracker.get_ticket(org_issue.destination_id)
+   # Update original issue
+   Logger.log(f"Updating {org_issue.tracker.title()} issue {org_issue.id}:", indent=4)
+   if dest_issue.version:
+      Logger.log(f"Adding sprint label '{dest_issue.version}'", indent=6)
+      org_tracker.create_label(dest_issue.version)
+      org_issue.update(labels=org_issue.labels+[dest_issue.version])
+   else:
+      Logger.log_warning(f"No version information from issue to be synced back", indent=6)
+
    # Update destination issue
    Logger.log(f"Updating {dest_issue.tracker.title()} issue {dest_issue.id}:", indent=4)
-   if dest_issue.status != issue.status:
-      Logger.log(f"Syncing 'Status'... (change from '{dest_issue.status}' to '{issue.status}')", indent=6)
-      des_tracker.update_ticket_state(dest_issue, issue.status)
+   if dest_issue.status != org_issue.status:
+      Logger.log(f"Syncing 'Status'... (change from '{dest_issue.status}' to '{org_issue.status}')", indent=6)
+      des_tracker.update_ticket_state(dest_issue, org_issue.status)
    Logger.log(f"Syncing 'Description' and 'Story Point'", indent=6)
-   des_tracker.update_ticket(dest_issue.id, story_point=issue.story_point,
-                             description=f"Original issue url: {issue.url}\n\n{issue.description}")
+   des_tracker.update_ticket(dest_issue.id, story_point=org_issue.story_point,
+                             description=f"Original issue url: {org_issue.url}\n\n{org_issue.description}")
 
 def SyncIssue():
    csv_content = list()
@@ -293,9 +299,9 @@ def SyncIssue():
                break
 
             if not args.dryrun:
-               process_sync_issues(issue, dest_issue, des_tracker)
+               process_sync_issues(issue, tracker, dest_issue, des_tracker)
                csv_content.append(f"{issue_counter}, {issue.tracker.title()} {issue.id}, {issue.url}, {config['destination'][0]} {issue.destination_id}, synced\n")
-               sync_issue += 1
+            sync_issue += 1
             
          else:
             res_id = ""

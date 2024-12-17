@@ -20,6 +20,7 @@ class Status:
       "jira": {
          "Open": "Open",
          "In Progress": "In Progress",
+         "Resolved": "Closed",
          "Closed": "Closed"
       },
       "rtc": {
@@ -72,7 +73,7 @@ class Ticket():
                story_point: Optional[int] = None,
                createdDate: Optional[str] = None,
                updatedDate: Optional[str] = None,
-               labels: Union[str, list] = None,
+               labels: Optional[list] = [],
                destination_id: Optional[str] = None,
                issue_client: Callable = None):
       self.tracker = tracker
@@ -119,6 +120,14 @@ class Ticket():
                title_val = kwargs['title']
                kwargs['summary'] = title_val
                del kwargs['title']
+            if 'labels' in kwargs:
+               kwargs['fields'] = {
+                  'labels': list()
+               }
+               # JIRA label does not allow space
+               for label in kwargs['labels']:
+                  kwargs['fields']['labels'].append(label.replace(" ", "_"))
+               del kwargs['labels']
             self.issue_client.update(**kwargs)
          elif self.tracker == 'rtc':
             self.issue_client.update_workitem(self.id, **kwargs)
@@ -143,6 +152,7 @@ class TrackerService(ABC):
    Abstraction class of Tracker Service
    """
    HOUR_PER_STORYPOINT = 8
+   SPRINT_LABEL_COLOR = "#007bff" # calm blue
 
    def __init__(self):
       self.tracker_client = None
@@ -210,7 +220,6 @@ class TrackerService(ABC):
       """
       return int(seconds/3600/cls.HOUR_PER_STORYPOINT)
    
-   
 class JiraTracker(TrackerService):
    TYPE = "jira"
 
@@ -228,6 +237,7 @@ class JiraTracker(TrackerService):
                      f"{self.hostname}/browse/{issue.key}",
                      Status.normalize_issue_status(self.TYPE, issue.raw['fields']['status']['name']),
                      story_point=self.get_story_point(issue),
+                     labels=issue.raw['fields']['labels'],
                      issue_client=issue
                      ) for issue in issues]
 
@@ -249,10 +259,18 @@ class JiraTracker(TrackerService):
          exclude_condition = kwargs['exclude']
          del kwargs['exclude']
          for key, val in exclude_condition.items():
-            jql.append(f"{key} not in ({','.join(val)})")
+            if val:
+               if isinstance(val, list):
+                  jql.append(f"{key} not in ({','.join(val)})")
+               elif isinstance(val, str):
+                  jql.append(f"{key} != {val}")
 
       for key, val in kwargs.items():
-         jql.append(f"{key} in ({','.join(val)})")
+         if val:
+            if isinstance(val, list):
+               jql.append(f"{key} in ({','.join(val)})")
+            elif isinstance(val, str):
+               jql.append(f"{key} = {val}")
 
       list_issues = self.tracker_client.search_issues(" AND ".join(jql))
       issues = self.__normalize_issue(list_issues)
@@ -278,6 +296,12 @@ class JiraTracker(TrackerService):
       if 'timetracking' in issue.raw['fields'] and 'remainingEstimateSeconds' in issue.raw['fields']['timetracking']:
          return self.time_estimate_to_story_point(issue.raw['fields']['timetracking']['remainingEstimateSeconds'])
       return 0
+
+   def create_label(self, label_name:str , color: str = None, repository: str = None):
+      """
+      Jira does not require to create label before, label can be add directly in ticket
+      """
+      pass
 
 class GithubTracker(TrackerService):
    TYPE = "github"
@@ -353,6 +377,21 @@ class GithubTracker(TrackerService):
       gh_repo = self.__get_repository_client(repository)
       edit_issue = gh_repo.get_issue(id)
       edit_issue.edit(**kwargs)
+
+   def create_label(self, label_name:str , color: str = None, repository: str = None):
+      gh_repo = self.__get_repository_client(repository)
+      list_existing_labels = gh_repo.get_labels()
+      for item in list_existing_labels:
+         if item.name == label_name:
+            return
+
+      label_pros = {
+         'name': label_name,
+         'color': color if color else self.SPRINT_LABEL_COLOR
+      }
+      
+      label_pros['color'] = label_pros['color'].replace('#', '')
+      gh_repo.create_label(**label_pros)
 
 class GitlabTracker(TrackerService):
    """
@@ -458,6 +497,21 @@ class GitlabTracker(TrackerService):
 
       # then get story point from labels if time estimate is not given
       return self.get_story_point_from_labels(issue.labels)
+
+   def create_label(self, label_name:str , color: str = None, project: str = None):
+      gl_project = self.__get_project_client(project)
+      list_existing_labels = gl_project.labels.list()
+      for item in list_existing_labels:
+         if item.name == label_name:
+            return
+
+      label_pros = {
+         'name': label_name,
+         'color': color if color else self.SPRINT_LABEL_COLOR
+      }
+      
+      gl_project.labels.create(label_pros)
+
 class RTCTracker(TrackerService):
    TYPE = "rtc"
 
