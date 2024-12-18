@@ -262,7 +262,8 @@ def SyncIssue():
    # Process destination tracker
    des_tracker = Tracker.create(config['destination'][0])
    des_tracker_params = copy.deepcopy(config['tracker'][config['destination'][0]])
-   del des_tracker_params['condition']
+   if 'condition' in des_tracker_params:
+      del des_tracker_params['condition']
    des_tracker.connect(**des_tracker_params)
 
    user_management = UserManagement(config['user'])
@@ -275,7 +276,8 @@ def SyncIssue():
       Logger.log(f"Process issues from {source.title()}:")
       tracker = Tracker.create(source)
       tracker_params = copy.deepcopy(config['tracker'][source])
-      del tracker_params['condition']
+      if 'condition' in tracker_params:
+         del tracker_params['condition']
 
       tracker.connect(**tracker_params)
       list_issue = tracker.get_tickets(**config['tracker'][source]['condition'])
@@ -296,11 +298,11 @@ def SyncIssue():
             except Exception:
                csv_content.append(f"{issue_counter}, {issue.tracker.title()} {issue.id}, {issue.url}, {config['destination'][0]} {issue.destination_id}, not found\n")
                Logger.log_warning(f"{config['destination'][0].title()} issue {issue.destination_id} cannot be found.", indent=4)
-               break
+               continue
 
             if not args.dryrun:
                process_sync_issues(issue, tracker, dest_issue, des_tracker)
-               csv_content.append(f"{issue_counter}, {issue.tracker.title()} {issue.id}, {issue.url}, {config['destination'][0]} {issue.destination_id}, synced\n")
+            csv_content.append(f"{issue_counter}, {issue.tracker.title()} {issue.id}, {issue.url}, {config['destination'][0]} {issue.destination_id}, synced\n")
             sync_issue += 1
             
          else:

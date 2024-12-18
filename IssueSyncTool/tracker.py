@@ -592,8 +592,6 @@ class RTCTracker(TrackerService):
       self.tracker_client.update_workitem(ticket_id, **kwargs)
 
 class Tracker():
-   SUPPORT_TRACKER = ["github", "jira", "rtc"]
-
    @staticmethod
    def create(type, *args, **kwargs):
       trackers = Tracker.get_support_trackers()

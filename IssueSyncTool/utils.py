@@ -151,6 +151,10 @@ CONFIG_SCHEMA = {
             },
             "assignee" : {
                "$ref": "#/$defs/array_of_string"
+            },
+            "type" : {
+               "type": "string",
+               "enum": ["Epic", "Story", "Bug", "Change Request", "OPL", "Support Request"]
             }
          }
       },
