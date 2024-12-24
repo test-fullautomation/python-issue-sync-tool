@@ -37,8 +37,7 @@ Parse xml object from file.
       oParser = etree.XMLParser(dtd_validation=bdtd_validation)
       oTree = etree.parse(file_name, oParser)
    except Exception as reason:
-      print("Could not parse xml data. Reason: %s" % reason)
-      exit(1)
+      raise RuntimeError(f"Could not parse xml data. Reason: {reason}")
    return oTree
 
 class RTCClient():
@@ -106,13 +105,12 @@ Initialize the RTCClient instance.
       self.templates_dir = os.path.join(os.path.dirname(__file__),'rtc-templates')
       
       self.login()
-      self.defined_complexity = self.__get_complexity()
-
+      self.defined_complexity = self.__get_complexity_cache()
    def __get_projectID(self):
       """
 Get the project ID for the specified project name.
       """
-      bSuccess = True
+      project_found = False
       res = self.session.get(self.hostname + '/ccm/process/project-areas', 
                              allow_redirects=True, verify=False)
       
@@ -125,10 +123,45 @@ Get the project ID for the specified project name.
                sProjectURL = oProject.find("jp06:url", nsmap).text
                # replace encoded uri project name by project UUID
                self.project['id'] = sProjectURL.split("/")[-1]
-               bSuccess = True
+               project_found = True
                break
-      if not bSuccess:
+      if not project_found:
          raise Exception(f"Could not find project with name '{self.project['name']}'")
+
+   def __get_complexity_cache(self, project_id=None):
+      """
+Get the complexity values for the specified project, using cache if available.
+
+**Arguments:**
+
+* ``project_id``
+
+   / *Condition*: optional / *Type*: str / *Default*: None /
+
+   The project ID.
+
+**Returns:**
+
+* ``complexity_dict``
+
+   / *Type*: dict /
+
+   A dictionary of complexity values.
+      """
+      if not hasattr(self, '_complexity_cache'):
+         self._complexity_cache = {}
+      
+      if not project_id:
+         if not self.project['id']:
+            self.__get_projectID()
+         project_id = self.project['id']
+      
+      if project_id in self._complexity_cache:
+         return self._complexity_cache[project_id]
+      
+      complexity_dict = self.__get_complexity(project_id)
+      self._complexity_cache[project_id] = complexity_dict
+      return complexity_dict
 
    def __get_complexity(self, project_id=None):
       """
@@ -235,10 +268,10 @@ Get the filed against URL for the specified file against name.
                if fileAgainst_name == fileAgainst_title:
                   return result['rdf:about']
 
-            if 'oslc:nextPage' in obj_res['oslc:responseInfo'] and obj_res['oslc:responseInfo']['oslc:nextPage']:
+            if 'oslc:responseInfo' in obj_res and 'oslc:nextPage' in obj_res['oslc:responseInfo'] and obj_res['oslc:responseInfo']['oslc:nextPage']:
                return self.__get_filedAgainst(obj_res['oslc:responseInfo']['oslc:nextPage'], fileAgainst_name)
          except Exception as reason:
-            raise Exception(f"Error when parsing fileAgainst response")
+            raise Exception("Error when parsing fileAgainst response")
       else:
          raise Exception(f"Failed to request to get fileAgainst, url: '{url}'")
       return None
@@ -275,7 +308,7 @@ Get the filed against URL for the specified file against name.
       
       fileAgainst_url = self.__get_filedAgainst(url, fileAgainst_name)
       if not fileAgainst_url:
-         raise Exception(f"Could not found fileAgainst '{fileAgainst_name}'")
+         raise Exception(f"Could not find fileAgainst '{fileAgainst_name}'")
 
       return fileAgainst_url
 
@@ -322,7 +355,10 @@ Authenticate and establish a session with RTC.
       url = f"{self.hostname}/ccm/authenticated/identity"
       response = self.session.get(url, allow_redirects=True, verify=False)
       if response.status_code == 200:
-         self.__get_projectID()
+         try:
+            self.__get_projectID()
+         except Exception as e:
+            raise Exception(f"Failed to get project ID: {e}")
       else:
          raise Exception(f"Authenticate to RTC server {self.hostname} fail. Please verify your credential.")
         
@@ -560,7 +596,17 @@ Create a new work item.
          workitem_template = fh.read()
 
       req_payload = workitem_template.format(**locals())
-
+      # req_payload = workitem_template.format(
+      #    project_id=project_id,
+      #    user_id=user_id,
+      #    hostname=hostname,
+      #    assignee=assignee,
+      #    filed_against=filed_against,
+      #    state=state,
+      #    story_point=story_point,
+      #    title=title,
+      #    description=description
+      # )
       req_url = f"{self.hostname}/ccm/oslc/contexts/{project_id}/workitems/com.ibm.team.apt.workItemType.story"
 
       response = requests.post(

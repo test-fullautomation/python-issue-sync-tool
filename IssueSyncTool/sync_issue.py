@@ -90,13 +90,13 @@ Write log message to console/file output.
 
 (*no returns*)
       """
-      if color==None:
+      if color is None:
          color = cls.color_normal
       if cls.output_console:
          print(cls.prefix_all + cls.color_reset + color + " "*indent + msg + cls.color_reset)
-      if cls.output_logfile!=None and os.path.isfile(cls.output_logfile):
+      if cls.output_logfile and os.path.isfile(cls.output_logfile):
          with open(cls.output_logfile, 'a') as f:
-            f.write(" "*indent + msg)
+            f.write(cls.prefix_all + " "*indent + msg + "\n")
       return
 
    @classmethod
@@ -160,7 +160,7 @@ Write error message to console/file output.
       cls.log(prefix+str(msg), cls.color_error, indent)
       if fatal_error:
          cls.log(f"{sys.argv[0]} has been stopped!", cls.color_error)
-         exit(1)
+         raise SystemExit(1)
 
 def write_csv_files(filename, list_line):
    """
@@ -184,12 +184,12 @@ Write a list of lines to a CSV file.
 
 (*no returns*)
    """
-   with open(filename, 'w') as fh:
+   with open(filename, 'w', encoding='utf-8') as fh:
       fh.writelines(list_line)
 
 def process_cli_argument():
    """
-Process command-line arguments.
+Create and configure the ArgumentParser instance, then process command-line arguments.
 
 **Returns:**
 
@@ -237,7 +237,10 @@ Process the configuration JSON file.
    """
    if os.path.isfile(path_file):
       with open(path_file, 'r') as json_file:
-         config = json.load(json_file)
+         try:
+            config = json.load(json_file)
+         except json.JSONDecodeError as e:
+            Logger.log_error(f"Error decoding JSON file: {e}", fatal_error=True)
          try:
             validate(config, CONFIG_SCHEMA)
          except Exception as reason:
@@ -273,7 +276,7 @@ title with destination issue's id.
 
    / *Condition*: required / *Type*: User /
 
-   The assignee user object.
+   The assignee user object. The user who will be assigned to the new issue on the destination tracker.
 
 **Returns:**
 

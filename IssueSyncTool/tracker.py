@@ -65,10 +65,10 @@ Normalize the issue status to a standard format.
   The normalized status of the issue.
       """
       if tracker_type not in Status.STATUS_MAPPING.keys():
-         raise Exception(f"Unsupported tracker type {tracker_type}")
+         raise ValueError(f"Unsupported tracker type {tracker_type}")
       
       if native_status not in Status.STATUS_MAPPING[tracker_type].keys():
-         raise Exception(f"Unsupported status {native_status} for {tracker_type.title()} issue")
+         raise ValueError(f"Unsupported status {native_status} for {tracker_type.title()} issue")
       
       return Status.STATUS_MAPPING[tracker_type][native_status]
    
@@ -284,7 +284,10 @@ Update issue on tracker with following supported attributes:
 
    def _update_gitlab_issue(self, **kwargs):
       for attr, val in kwargs.items():
-         setattr(self.issue_client, attr, val)
+         if hasattr(self.issue_client, attr):
+            setattr(self.issue_client, attr, val)
+         else:
+            raise AttributeError(f"'{type(self.issue_client).__name__}' object has no attribute '{attr}'")
       self.issue_client.save()
 
    def _update_github_issue(self, **kwargs):
@@ -336,7 +339,10 @@ class TrackerService(ABC):
    """
 Abstraction class of Tracker Service.
    """
+   # Number of hours equivalent to one story point.
    HOUR_PER_STORYPOINT = 8
+
+   # Default color for sprint labels.
    SPRINT_LABEL_COLOR = "#007bff"  # calm blue
 
    def __init__(self):
@@ -507,6 +513,8 @@ Convert given estimated time (in seconds) to story points.
 
   The equivalent story points for the given estimated time.
       """
+      if not isinstance(seconds, int) or seconds < 0:
+         raise ValueError("seconds must be a non-negative integer")
       return int(seconds / 3600 / cls.HOUR_PER_STORYPOINT)
    
 class JiraTracker(TrackerService):
@@ -547,7 +555,7 @@ Normalize a list of issues to Ticket objects.
                      issue.key,
                      issue.raw['fields']['summary'],
                      issue.raw['fields']['description'],
-                     issue.raw['fields']['assignee']['name'],
+                     issue.raw['fields']['assignee']['name'] if issue.raw['fields']['assignee'] else None,
                      f"{self.hostname}/browse/{issue.key}",
                      Status.normalize_issue_status(self.TYPE, issue.raw['fields']['status']['name']),
                      story_point=self.get_story_point(issue),
@@ -729,7 +737,7 @@ Get the story points of an issue.
 
   The story points of the issue.
       """
-      if 'timetracking' in issue.raw['fields'] and 'remainingEstimateSeconds' in issue.raw['fields']['timetracking']:
+      if 'timetracking' in issue.raw['fields'] and issue.raw['fields']['timetracking'] and 'remainingEstimateSeconds' in issue.raw['fields']['timetracking']:
          return self.time_estimate_to_story_point(issue.raw['fields']['timetracking']['remainingEstimateSeconds'])
       return 0
 

@@ -37,7 +37,7 @@ Return a string representation of the User object.
 
   A string representation of the User object.
       """
-      return f"User (Name: {self.name}\nID: {self.id})"
+      return f"User (Name: {self.name}, ID: {self.id})"
 
 class UserManagement:
    """
@@ -55,12 +55,12 @@ Initialize the UserManagement instance.
 
   A list of user data dictionaries.
       """
-      self.list_user = []
+      self.users = []
       for item in users:
          name = item['name']
          del item['name']
          user = User(name, item)
-         self.list_user.append(user)
+         self.users.append(user)
 
    def get_user(self, id: str, tracker: str) -> Union[User, None]:
       """
@@ -88,8 +88,8 @@ Get a user by their ID and tracker.
 
   The user object if found, otherwise None.
       """
-      for user in self.list_user:
-         if (tracker in user.id) and (user.id[tracker] == id.lower()):
+      for user in self.users:
+         if isinstance(user.id, dict) and (tracker in user.id) and (user.id[tracker] == id.lower()):
             return user
          
       return None
