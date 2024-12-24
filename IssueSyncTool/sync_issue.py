@@ -10,9 +10,9 @@ from jsonschema import validate
 from .tracker import Tracker
 from .user import UserManagement
 
-class Logger():
+class Logger:
    """
-Logger class for logging message.
+Logger class for logging messages.
    """
    output_logfile = None
    output_console = True
@@ -129,6 +129,8 @@ Write warning message to console/file output.
       """
 Write error message to console/file output.
 
+**Arguments:**
+
 *  ``msg``
 
    / *Condition*: required / *Type*: str /
@@ -161,10 +163,42 @@ Write error message to console/file output.
          exit(1)
 
 def write_csv_files(filename, list_line):
+   """
+Write a list of lines to a CSV file.
+
+**Arguments:**
+
+*  ``filename``
+
+   / *Condition*: required / *Type*: str /
+
+   The name of the CSV file.
+
+*  ``list_line``
+
+   / *Condition*: required / *Type*: list /
+
+   A list of lines to write to the CSV file.
+
+**Returns:**
+
+(*no returns*)
+   """
    with open(filename, 'w') as fh:
       fh.writelines(list_line)
 
 def process_cli_argument():
+   """
+Process command-line arguments.
+
+**Returns:**
+
+* ``args``
+
+  / *Type*: Namespace /
+
+  The parsed command-line arguments.
+   """
    cli_parser = ArgumentParser(prog="IssueSyncTool (Tickets Sync Tool)",
                                description="IssueSyncTool sync ticket|issue|workitem "+
                                            "between tracking systems such as "+
@@ -182,6 +216,25 @@ def process_cli_argument():
    return cli_parser.parse_args()
 
 def process_configuration(path_file):
+   """
+Process the configuration JSON file.
+
+**Arguments:**
+
+*  ``path_file``
+
+   / *Condition*: required / *Type*: str /
+
+   The path to the configuration JSON file.
+
+**Returns:**
+
+* ``config``
+
+  / *Type*: dict /
+
+  The configuration dictionary.
+   """
    if os.path.isfile(path_file):
       with open(path_file, 'r') as json_file:
          config = json.load(json_file)
@@ -196,11 +249,39 @@ def process_configuration(path_file):
 
 def process_new_issue(issue, des_tracker, assignee):
    """
-   Process to create new issue on destination tracker and update original issue's
-   title with destination issue's id.
+Process to create new issue on destination tracker and update original issue's
+title with destination issue's id.
 
-   - New issue's description is consist of original issue url and its description.
-   - Assignee is get from
+- New issue's description is consist of original issue url and its description.
+- Assignee is get from
+
+**Arguments:**
+
+*  ``issue``
+
+   / *Condition*: required / *Type*: Issue /
+
+   The original issue object.
+
+*  ``des_tracker``
+
+   / *Condition*: required / *Type*: TrackerService /
+
+   The destination tracker service.
+
+*  ``assignee``
+
+   / *Condition*: required / *Type*: User /
+
+   The assignee user object.
+
+**Returns:**
+
+* ``res_id``
+
+  / *Type*: str /
+
+  The ID of the created issue on the destination tracker.
    """
    issue_desc = f"Original issue url: {issue.url}\n\n{issue.description}"
 
@@ -216,17 +297,47 @@ def process_new_issue(issue, des_tracker, assignee):
 
 def process_sync_issues(org_issue, org_tracker, dest_issue, des_tracker):
    """
-   Update source (original) issue due to information from appropriate destination one.
+Update source (original) issue due to information from appropriate destination one.
 
-   Defined sync attributes:
-     - `Title`: add issue ID as prefix e.g `[ 123 ] Ticket title`when creating on destination tracker
-     - `Story point`: when planning existing issue on destination tracker
-     - `Version`: when planning existing issue on destination tracker
+Defined sync attributes:
+  - `Title`: add issue ID as prefix e.g `[ 123 ] Ticket title`when creating on destination tracker
+  - `Story point`: when planning existing issue on destination tracker
+  - `Version`: when planning existing issue on destination tracker
 
-   Update destination issue due to information from source.
+Update destination issue due to information from source.
 
-   Defined sync attributes:
-     - `Status`: status is synced from original ticket, not allow to update directly on destination tracker
+Defined sync attributes:
+  - `Status`: status is synced from original ticket, not allow to update directly on destination tracker
+
+**Arguments:**
+
+*  ``org_issue``
+
+   / *Condition*: required / *Type*: Issue /
+
+   The original issue object.
+
+*  ``org_tracker``
+
+   / *Condition*: required / *Type*: TrackerService /
+
+   The original tracker service.
+
+*  ``dest_issue``
+
+   / *Condition*: required / *Type*: Issue /
+
+   The destination issue object.
+
+*  ``des_tracker``
+
+   / *Condition*: required / *Type*: TrackerService /
+
+   The destination tracker service.
+
+**Returns:**
+
+(*no returns*)
    """
    dest_issue = des_tracker.get_ticket(org_issue.destination_id)
    # Update original issue
@@ -248,6 +359,13 @@ def process_sync_issues(org_issue, org_tracker, dest_issue, des_tracker):
                              description=f"Original issue url: {org_issue.url}\n\n{org_issue.description}")
 
 def SyncIssue():
+   """
+Main function to sync issues between tracking systems.
+
+**Returns:**
+
+(*no returns*)
+   """
    csv_content = list()
    csv_file = "sync_status.csv"
    csv_content.append("No., Ticket, Source Link, Destination ID, Stage\n")
