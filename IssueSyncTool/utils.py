@@ -110,18 +110,40 @@ CONFIG_SCHEMA = {
          "items": {"type": "string"},
          "additionalItems": False
       },
+      "string_or_array": {
+         "oneOf": [
+            {
+               "type": "array",
+               "items": {"type": "string"},
+            },
+            {
+               "type": "string",
+            }
+         ]
+      },
       "github_condition": {
          "type": "object",
          "properties": {
             "labels" : {
-               "type": "array",
-               "items": {"type": "string"},
-               "additionalItems": False
+               "$ref": "#/$defs/string_or_array"
             },
-            "assignee" : { "type": "string" },
+            "assignee" : { 
+               "$ref": "#/$defs/string_or_array"
+            },
             "state" : { 
-               "type": "string",
-               "enum": ["open", "closed", "all"]
+               "oneOf": [
+                  {
+                     "type": "array",
+                     "items": {
+                        "type": "string",
+                        "enum": ["open", "closed", "all"]
+                     },
+                  },
+                  {
+                     "type": "string",
+                     "enum": ["open", "closed", "all"]
+                  }
+               ]
             }
          }
       },
@@ -129,14 +151,25 @@ CONFIG_SCHEMA = {
          "type": "object",
          "properties": {
             "labels" : {
-               "type": "array",
-               "items": {"type": "string"},
-               "additionalItems": False
+               "$ref": "#/$defs/string_or_array"
             },
-            "assignee" : { "type": "string" },
+            "assignee" : { 
+               "$ref": "#/$defs/string_or_array"
+            },
             "state" : { 
-               "type": "string",
-               "enum": ["opened", "closed", "all"]
+               "oneOf": [
+                  {
+                     "type": "array",
+                     "items": {
+                        "type": "string",
+                        "enum": ["opened", "closed", "all"]
+                     },
+                  },
+                  {
+                     "type": "string",
+                     "enum": ["opened", "closed", "all"]
+                  }
+               ]
             }
          }
       },
@@ -144,17 +177,40 @@ CONFIG_SCHEMA = {
          "type": "object",
          "properties": {
             "labels" : {
-               "$ref": "#/$defs/array_of_string"
+               "$ref": "#/$defs/string_or_array"
             },
             "status" : {
-               "$ref": "#/$defs/array_of_string"
+               "oneOf": [
+                  {
+                     "type": "array",
+                     "items": {
+                        "type": "string",
+                        "enum": ["Open", "In Progress", "Resolved", "Closed"]
+                     },
+                  },
+                  {
+                     "type": "string",
+                     "enum": ["Open", "In Progress", "Resolved", "Closed"]
+                  }
+               ]
             },
             "assignee" : {
-               "$ref": "#/$defs/array_of_string"
+               "$ref": "#/$defs/string_or_array"
             },
             "type" : {
-               "type": "string",
-               "enum": ["Epic", "Story", "Bug", "Change Request", "OPL", "Support Request"]
+               "oneOf": [
+                  {
+                     "type": "array",
+                     "items": {
+                        "type": "string",
+                        "enum": ["Epic", "Story", "Bug", "Change Request", "OPL", "Support Request"]
+                     },
+                  },
+                  {
+                     "type": "string",
+                     "enum": ["Epic", "Story", "Bug", "Change Request", "OPL", "Support Request"]
+                  }
+               ]
             }
          }
       },

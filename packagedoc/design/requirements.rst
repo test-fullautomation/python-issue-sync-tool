@@ -48,9 +48,9 @@ Details:
    +------------------+------------------+------------------+------------------+------------------+
    | Status           | Status           | Status           | Status           | Status           |
    +------------------+------------------+------------------+------------------+------------------+
-   | Story point      | Labels           | Labels           | Story point      | Story point      |
+   | Story point      | Labels           | Labels           | Estimate         | Story point      |
    +------------------+------------------+------------------+------------------+------------------+
-   | Version          | Labels           | Labels           | Version          | Version          |
+   | Sprint           | Labels           | Labels           | Labels           | Planned For      |
    +------------------+------------------+------------------+------------------+------------------+
 
 3. JSON configuration file
