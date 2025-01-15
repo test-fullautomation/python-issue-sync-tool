@@ -737,9 +737,13 @@ Get the story points of an issue.
 
   The story points of the issue.
       """
-      if 'timetracking' in issue.raw['fields'] and issue.raw['fields']['timetracking'] and 'remainingEstimateSeconds' in issue.raw['fields']['timetracking']:
-         return self.time_estimate_to_story_point(issue.raw['fields']['timetracking']['remainingEstimateSeconds'])
-      return 0
+      # customfield_10224 from API response contains Estimate story point attribute
+      return int(issue.raw['fields']['customfield_10224'])
+   
+      # convert estimation time to story point
+      # if 'timetracking' in issue.raw['fields'] and issue.raw['fields']['timetracking'] and 'remainingEstimateSeconds' in issue.raw['fields']['timetracking']:
+      #    return self.time_estimate_to_story_point(issue.raw['fields']['timetracking']['remainingEstimateSeconds'])
+      # return 0
 
    def create_label(self, label_name: str, color: str = None, repository: str = None):
       """
@@ -1479,15 +1483,15 @@ Get the story points of an issue.
 
   The story points of the issue.
       """
-      # try to get estimated time first
-      try:
-         time_estimate = issue.time_stats()
-         if time_estimate['time_estimate'] > 0:
-            return self.time_estimate_to_story_point(time_estimate['time_estimate'])
-      except:
-         pass
+      # # try to get estimated time (not is used)
+      # try:
+      #    time_estimate = issue.time_stats()
+      #    if time_estimate['time_estimate'] > 0:
+      #       return self.time_estimate_to_story_point(time_estimate['time_estimate'])
+      # except:
+      #    pass
 
-      # then get story point from labels if time estimate is not given
+      # get story point from labels
       return self.get_story_point_from_labels(issue.labels)
 
    def create_label(self, label_name: str, color: str = None, project: str = None):
