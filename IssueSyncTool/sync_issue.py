@@ -318,11 +318,16 @@ title with destination issue's id.
    if component_mapping:
       if issue.component and issue.component in component_mapping:
          des_title = f"[ {component_mapping[issue.component]} ] {issue.title}"
+   
+   # Auto assign when missing assignee from original ticket
+   assignee_id = ""
+   if assignee:
+      assignee_id = assignee.id[des_tracker.TYPE]
 
    res_id = des_tracker.create_ticket(title=des_title,
                                       description=issue_desc,
                                       story_point=issue.story_point,
-                                      assignee=assignee.id[des_tracker.TYPE])
+                                      assignee=assignee_id)
    
    issue.update(title=f"[ {res_id} ] {issue.title}")
 
