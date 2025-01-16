@@ -100,6 +100,9 @@ CONFIG_SCHEMA = {
                "additionalProperties": False
             }
          }
+      },
+      "component_mapping": {
+         "type": "object"
       }
    },
    "required": ["source", "destination", "tracker"],

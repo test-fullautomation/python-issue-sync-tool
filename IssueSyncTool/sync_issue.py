@@ -250,7 +250,7 @@ Process the configuration JSON file.
    else:
       Logger.log_error(f"Given configuration JSON is not existing: '{path_file}'.", fatal_error=True)
 
-def process_new_issue(issue, des_tracker, assignee):
+def process_new_issue(issue, des_tracker, assignee, component_mapping=None):
    """
 Process to create new issue on destination tracker and update original issue's
 title with destination issue's id.
@@ -278,6 +278,12 @@ title with destination issue's id.
 
    The assignee user object. The user who will be assigned to the new issue on the destination tracker.
 
+*  ``component_mapping``
+
+   / *Condition*: optional / *Type*: dict /
+
+   Component mappings for naming ticket title on destination tracker.
+
 **Returns:**
 
 * ``res_id``
@@ -288,7 +294,12 @@ title with destination issue's id.
    """
    issue_desc = f"Original issue url: {issue.url}\n\n{issue.description}"
 
-   res_id = des_tracker.create_ticket(title=issue.title,
+   des_title = issue.title
+   if component_mapping:
+      if issue.component and issue.component in component_mapping:
+         des_title = f"[ {component_mapping[issue.component]} ] {issue.title}"
+
+   res_id = des_tracker.create_ticket(title=des_title,
                                       description=issue_desc,
                                       story_point=issue.story_point,
                                       assignee=assignee.id[des_tracker.TYPE])
@@ -298,7 +309,7 @@ title with destination issue's id.
    Logger.log(f"Created new {des_tracker.TYPE.title()} issue with ID {res_id}", indent=4)
    return res_id
 
-def process_sync_issues(org_issue, org_tracker, dest_issue, des_tracker):
+def process_sync_issues(org_issue, org_tracker, dest_issue, des_tracker, component_mapping=None, sync_only_status=False):
    """
 Update source (original) issue due to information from appropriate destination one.
 
@@ -338,6 +349,12 @@ Defined sync attributes:
 
    The destination tracker service.
 
+*  ``component_mapping``
+
+   / *Condition*: optional / *Type*: dict /
+
+   Component mappings for naming ticket title on destination tracker.
+
 **Returns:**
 
 (*no returns*)
@@ -357,9 +374,20 @@ Defined sync attributes:
    if dest_issue.status != org_issue.status:
       Logger.log(f"Syncing 'Status'... (change from '{dest_issue.status}' to '{org_issue.status}')", indent=6)
       des_tracker.update_ticket_state(dest_issue, org_issue.status)
-   Logger.log(f"Syncing 'Description' and 'Story Point'", indent=6)
-   des_tracker.update_ticket(dest_issue.id, story_point=org_issue.story_point,
-                             description=f"Original issue url: {org_issue.url}\n\n{org_issue.description}")
+
+   if not sync_only_status:
+      des_title = org_issue.title
+      if component_mapping:
+         if org_issue.component and org_issue.component in component_mapping:
+            des_title = f"[ {component_mapping[org_issue.component]} ] {org_issue.title}"
+      if dest_issue.title != des_title:
+         Logger.log(f"Syncing 'Title', 'Description' and 'Story Point'", indent=6)
+         des_tracker.update_ticket(dest_issue.id, title=des_title ,story_point=org_issue.story_point,
+                                 description=f"Original issue url: {org_issue.url}\n\n{org_issue.description}")
+      else:
+         Logger.log(f"Syncing 'Description' and 'Story Point'", indent=6)
+         des_tracker.update_ticket(dest_issue.id, story_point=org_issue.story_point,
+                                 description=f"Original issue url: {org_issue.url}\n\n{org_issue.description}")
 
 def SyncIssue():
    """
@@ -379,6 +407,11 @@ Main function to sync issues between tracking systems.
       config = process_configuration(args.config)
    else:
       Logger.log_error("Missing configuration JSON", fatal_error=True)
+
+   # Process component mapping information
+   component_mapping = None
+   if 'component_mapping' in config:
+      component_mapping = config['component_mapping']
 
    # Process destination tracker
    des_tracker = Tracker.create(config['destination'][0])
@@ -422,7 +455,7 @@ Main function to sync issues between tracking systems.
                continue
 
             if not args.dryrun:
-               process_sync_issues(issue, tracker, dest_issue, des_tracker)
+               process_sync_issues(issue, tracker, dest_issue, des_tracker, component_mapping)
             csv_content.append(f"{issue_counter}, {issue.tracker.title()} {issue.id}, {issue.url}, {config['destination'][0]} {issue.destination_id}, synced\n")
             sync_issue += 1
             
@@ -430,7 +463,7 @@ Main function to sync issues between tracking systems.
             res_id = ""
             # create new issue on destination tracker
             if not args.dryrun:
-               res_id = process_new_issue(issue, des_tracker, assignee)
+               res_id = process_new_issue(issue, des_tracker, assignee, component_mapping)
                
             csv_content.append(f"{issue_counter}, {issue.tracker.title()} {issue.id}, {issue.url}, {config['destination'][0]} {res_id}, new\n")
             new_issue += 1

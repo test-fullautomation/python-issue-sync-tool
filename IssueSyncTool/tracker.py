@@ -558,10 +558,16 @@ Normalize a list of issues to Ticket objects.
                      issue.raw['fields']['assignee']['name'] if issue.raw['fields']['assignee'] else None,
                      f"{self.hostname}/browse/{issue.key}",
                      Status.normalize_issue_status(self.TYPE, issue.raw['fields']['status']['name']),
+                     self.__get_component(issue),
                      story_point=self.get_story_point(issue),
                      labels=issue.raw['fields']['labels'],
                      issue_client=issue
                      ) for issue in issues]
+
+   def __get_component(self, issue):
+      if len(issue.raw['fields']['components']) > 0:
+         return issue.raw['fields']['components'][0]['name']
+      return None
 
    def connect(self, project: str, token: str, hostname: str):
       """
@@ -738,12 +744,13 @@ Get the story points of an issue.
   The story points of the issue.
       """
       # customfield_10224 from API response contains Estimate story point attribute
-      return int(issue.raw['fields']['customfield_10224'])
+      if 'customfield_10224' in issue.raw['fields'] and issue.raw['fields']['customfield_10224']:
+         return int(issue.raw['fields']['customfield_10224'])
    
       # convert estimation time to story point
       # if 'timetracking' in issue.raw['fields'] and issue.raw['fields']['timetracking'] and 'remainingEstimateSeconds' in issue.raw['fields']['timetracking']:
       #    return self.time_estimate_to_story_point(issue.raw['fields']['timetracking']['remainingEstimateSeconds'])
-      # return 0
+      return 0
 
    def create_label(self, label_name: str, color: str = None, repository: str = None):
       """
