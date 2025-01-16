@@ -3,6 +3,7 @@ import json
 import copy
 import sys
 import os
+import re
 from .version import VERSION, VERSION_DATE
 from .utils import CONFIG_SCHEMA
 from argparse import ArgumentParser
@@ -235,6 +236,25 @@ Process the configuration JSON file.
 
   The configuration dictionary.
    """
+   # Function to resolve environment variables in a string
+   def resolve_env_variables(value):
+      if isinstance(value, str):
+         # Match patterns like ${VAR_NAME}
+         matches = re.findall(r"\$\{(.*?)\}", value)
+         for match in matches:
+            env_value = os.getenv(match, "")
+            value = value.replace(f"${{{match}}}", env_value)
+      return value
+
+   # Recursively resolve environment variables in the JSON data
+   def resolve(data):
+      if isinstance(data, dict):
+         return {key: resolve(value) for key, value in data.items()}
+      elif isinstance(data, list):
+         return [resolve(item) for item in data]
+      else:
+         return resolve_env_variables(data)
+      
    if os.path.isfile(path_file):
       with open(path_file, 'r') as json_file:
          try:
@@ -246,7 +266,7 @@ Process the configuration JSON file.
          except Exception as reason:
             Logger.log_error(f"Invalid configuration json file. Reason: {reason}.", fatal_error=True)
 
-      return config
+      return resolve(config)
    else:
       Logger.log_error(f"Given configuration JSON is not existing: '{path_file}'.", fatal_error=True)
 
