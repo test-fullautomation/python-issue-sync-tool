@@ -4,6 +4,7 @@ import urllib3
 from io import BytesIO
 from lxml import etree
 import os
+from xml.sax.saxutils import escape
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 def get_xml_tree(file_name, bdtd_validation=True):
@@ -596,6 +597,8 @@ Create a new work item.
       with open(os.path.join(self.templates_dir ,'workitem.xml')) as fh:
          workitem_template = fh.read()
 
+      title = escape(title)
+      description = escape(description)
       req_payload = workitem_template.format(**locals())
       # req_payload = workitem_template.format(
       #    project_id=project_id,
