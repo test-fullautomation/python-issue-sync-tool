@@ -304,7 +304,8 @@ Get the filed against URL for the specified file against name.
       """
       if not project_id:
          project_id = self.project['id']
-      url = f"{self.hostname}/ccm/oslc/categories?projectURL={self.hostname}/ccm/process/project-areas/{project_id}&oslc.select=dc:title,rdfs:member,rtc_cm:hierarchicalName"
+      # url = f"{self.hostname}/ccm/oslc/categories?projectURL={self.hostname}/ccm/process/project-areas/{project_id}&oslc.select=dc:title,rdfs:member,rtc_cm:hierarchicalName"
+      url = f"{self.hostname}/ccm/oslc/categories?oslc.where=rtc_cm:projectArea=\"{project_id}\"&oslc.select=dc:title,rdfs:member,rtc_cm:hierarchicalName"
       
       fileAgainst_url = self.__get_filedAgainst(url, fileAgainst_name)
       if not fileAgainst_url:
