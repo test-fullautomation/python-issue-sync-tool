@@ -1,0 +1,38 @@
+@startuml sequence_diagram
+
+actor User
+actor Manager
+actor Scheduler
+
+participant "GitHub" as Github
+participant "Jira" as Jira
+participant "GitLab" as GitLab
+participant "Sync-tool" as tool
+participant "RTC" as RTC
+
+
+
+User -> Github : Create GitHub Issue
+User -> Jira : Create Jira Issue
+User -> GitLab : Create GitLab Issue
+
+Scheduler -> tool: Trigger Sync
+
+Github -> tool : Collect Issues from GitHub
+Jira -> tool : Collect Issues from Jira
+GitLab -> tool : Collect Issues from GitLab
+
+tool -> RTC : Sync all open Issues to RTC
+
+Github <- tool : Update with RTC ID and planning data
+Jira <- tool : Update with RTC ID and planning data
+GitLab <- tool : Update with RTC ID and planning data
+
+Manager -> RTC : Do planning only in RTC
+RTC -> tool : Provide planning data
+
+tool -> Github : Update with planning data
+tool -> Jira : Update with planning data
+tool -> GitLab : Update with planning data
+
+@enduml
