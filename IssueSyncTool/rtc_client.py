@@ -580,8 +580,10 @@ Create a new work item.
          project_id = self.project['id']
       user_id = self.user
       hostname = self.hostname
-      if not assignee:
-         assignee = self.user
+
+      contributors = ""
+      if assignee:
+         contributors = f"<dcterms:contributor rdf:resource=\"{hostname}/jts/users/{assignee}\" />"
 
       if file_against:
          filed_against = self.get_filedAgainst(file_against)
