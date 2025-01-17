@@ -206,9 +206,9 @@ Create and configure the ArgumentParser instance, then process command-line argu
                                            "Github Issue, JIRA and IBM RTC")
    cli_parser.add_argument('--config', type=str, required=True,
                            help='path to configuration json file')
-   cli_parser.add_argument('--dryrun', action="store_true", 
+   cli_parser.add_argument('--dryrun', action="store_true",
                            help='if set, then just dump the tickets without syncing')
-   cli_parser.add_argument('--csv', action="store_true", 
+   cli_parser.add_argument('--csv', action="store_true",
                            help='if set, then store the sync status to csv file sync_status.csv')
    cli_parser.add_argument('-v', '--version', action='version',
                            version=f"v{VERSION} ({VERSION_DATE})",
@@ -254,7 +254,7 @@ Process the configuration JSON file.
          return [resolve(item) for item in data]
       else:
          return resolve_env_variables(data)
-      
+
    if os.path.isfile(path_file):
       with open(path_file, 'r') as json_file:
          try:
@@ -319,11 +319,17 @@ title with destination issue's id.
       if issue.component and issue.component in component_mapping:
          des_title = f"[ {component_mapping[issue.component]} ] {issue.title}"
 
+   # Auto assign when missing assignee from original ticket
+   assignee_id = ""
+   if assignee:
+      assignee_id = assignee.id[des_tracker.TYPE]
+
    res_id = des_tracker.create_ticket(title=des_title,
                                       description=issue_desc,
                                       story_point=issue.story_point,
-                                      assignee=assignee.id[des_tracker.TYPE])
-   
+                                      assignee=assignee_id,
+                                      labels=issue.labels)
+
    issue.update(title=f"[ {res_id} ] {issue.title}")
 
    Logger.log(f"Created new {des_tracker.TYPE.title()} issue with ID {res_id}", indent=4)
@@ -401,13 +407,15 @@ Defined sync attributes:
          if org_issue.component and org_issue.component in component_mapping:
             des_title = f"[ {component_mapping[org_issue.component]} ] {org_issue.title}"
       if dest_issue.title != des_title:
-         Logger.log(f"Syncing 'Title', 'Description' and 'Story Point'", indent=6)
+         Logger.log(f"Syncing 'Title', 'Description', 'Labels' and 'Story Point'", indent=6)
          des_tracker.update_ticket(dest_issue.id, title=des_title ,story_point=org_issue.story_point,
-                                 description=f"Original issue url: {org_issue.url}\n\n{org_issue.description}")
+                                   labels=org_issue.labels,
+                                   description=f"Original issue url: {org_issue.url}\n\n{org_issue.description}")
       else:
-         Logger.log(f"Syncing 'Description' and 'Story Point'", indent=6)
+         Logger.log(f"Syncing 'Description', 'Labels' and 'Story Point'", indent=6)
          des_tracker.update_ticket(dest_issue.id, story_point=org_issue.story_point,
-                                 description=f"Original issue url: {org_issue.url}\n\n{org_issue.description}")
+                                   labels=org_issue.labels,
+                                   description=f"Original issue url: {org_issue.url}\n\n{org_issue.description}")
 
 def SyncIssue():
    """
@@ -464,7 +472,7 @@ Main function to sync issues between tracking systems.
             assignee = user_management.get_user(issue.assignee, source)
          elif isinstance(issue.assignee, list) and len(issue.assignee):
             assignee = user_management.get_user(issue.assignee[0], source)
-         
+
          if issue.is_synced_issue():
             # update original issue on source tracker with planing from destination
             try:
@@ -478,18 +486,18 @@ Main function to sync issues between tracking systems.
                process_sync_issues(issue, tracker, dest_issue, des_tracker, component_mapping)
             csv_content.append(f"{issue_counter}, {issue.tracker.title()} {issue.id}, {issue.url}, {config['destination'][0]} {issue.destination_id}, synced\n")
             sync_issue += 1
-            
+
          else:
             res_id = ""
             # create new issue on destination tracker
             if not args.dryrun:
                res_id = process_new_issue(issue, des_tracker, assignee, component_mapping)
-               
+
             csv_content.append(f"{issue_counter}, {issue.tracker.title()} {issue.id}, {issue.url}, {config['destination'][0]} {res_id}, new\n")
             new_issue += 1
 
-      Logger.log(f"{new_issue + sync_issue} {source.title()} issues has been synced (includes {new_issue} new creation) to {config['destination'][0]} successfully!\n", indent=2)      
-   
+      Logger.log(f"{new_issue + sync_issue} {source.title()} issues has been synced (includes {new_issue} new creation) to {config['destination'][0]} successfully!\n", indent=2)
+
    Logger.log(f"Total {issue_counter} issues has been synced to {config['destination'][0]} successfully!")
    if args.csv:
       write_csv_files(csv_file, csv_content)

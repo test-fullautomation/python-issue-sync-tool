@@ -1,19 +1,19 @@
-<rdf:RDF 
-   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" 
-   xmlns:dcterms="http://purl.org/dc/terms/" 
-   xmlns:rtc_ext="http://jazz.net/xmlns/prod/jazz/rtc/ext/1.0/" 
-   xmlns:oslc="http://open-services.net/ns/core#" 
+<rdf:RDF
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:dcterms="http://purl.org/dc/terms/"
+   xmlns:rtc_ext="http://jazz.net/xmlns/prod/jazz/rtc/ext/1.0/"
+   xmlns:oslc="http://open-services.net/ns/core#"
    xmlns:acp="http://jazz.net/ns/acp#"
-   xmlns:oslc_cm="http://open-services.net/ns/cm#" 
-   xmlns:oslc_cmx="http://open-services.net/ns/cm-x#" 
-   xmlns:oslc_pl="http://open-services.net/ns/pl#" 
-   xmlns:acc="http://open-services.net/ns/core/acc#" 
+   xmlns:oslc_cm="http://open-services.net/ns/cm#"
+   xmlns:oslc_cmx="http://open-services.net/ns/cm-x#"
+   xmlns:oslc_pl="http://open-services.net/ns/pl#"
+   xmlns:acc="http://open-services.net/ns/core/acc#"
    xmlns:rtc_cm="http://jazz.net/xmlns/prod/jazz/rtc/cm/1.0/"
    xmlns:process="http://jazz.net/ns/process#">
    <rdf:Description rdf:nodeID="A0">
       <dcterms:title rdf:parseType="Literal">{title}</dcterms:title>
       <rtc_ext:com.ibm.team.apt.attribute.complexity rdf:resource="{hostname}/ccm/oslc/enumerations/{project_id}/complexity/{story_point}"/>
-      <dcterms:contributor rdf:resource="{hostname}/jts/users/{assignee}" />
+      {contributors}
       <dcterms:description rdf:parseType="Literal">{description}</dcterms:description>
       <oslc_cm:status rdf:datatype="http://www.w3.org/2001/XMLSchema#string">{state}</oslc_cm:status>
       <rtc_ext:contextId rdf:datatype="http://www.w3.org/2001/XMLSchema#string">{project_id}</rtc_ext:contextId>
@@ -26,5 +26,6 @@
       <oslc:serviceProvider rdf:resource="{hostname}/ccm/oslc/contexts/{project_id}/workitems/services" />
       <process:projectArea rdf:resource="{hostname}/ccm/process/project-areas/{project_id}" />
       <dcterms:creator rdf:resource="{hostname}/jts/users/{user_id}" />
+      <dcterms:subject rdf:datatype="http://www.w3.org/2001/XMLSchema#string">{tags}</dcterms:subject>
    </rdf:Description>
 </rdf:RDF>
