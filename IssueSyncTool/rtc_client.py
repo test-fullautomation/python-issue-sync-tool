@@ -73,8 +73,9 @@ Client for interacting with RTC (Rational Team Concert).
       "title": "oslc_cm:ChangeRequest//dcterms:title",
       "description": "oslc_cm:ChangeRequest//dcterms:description",
       "story_point": "oslc_cm:ChangeRequest//rtc_ext:com.ibm.team.apt.attribute.complexity",
+      "labels": "oslc_cm:ChangeRequest//dcterms:subject"
    }
-   
+
    def __init__(self, hostname, project, username, token, file_against=None):
       """
 Initialize the RTCClient instance.
@@ -120,14 +121,14 @@ Initialize the RTCClient instance.
       self.file_against = file_against
       self.session = requests.Session()
       self.headers = {
-         "Content-Type": "application/xml", 
+         "Content-Type": "application/xml",
          "Accept": "application/json",
          "OSLC-Core-version": "2.0",
          "Authorization" : f"Basic {token}"
       }
       self.session.headers = self.headers
       self.templates_dir = os.path.join(os.path.dirname(__file__),'rtc-templates')
-      
+
       self.login()
       self.defined_complexity = self.__get_complexity_cache()
    def __get_projectID(self):
@@ -135,9 +136,9 @@ Initialize the RTCClient instance.
 Get the project ID for the specified project name.
       """
       project_found = False
-      res = self.session.get(self.hostname + '/ccm/process/project-areas', 
+      res = self.session.get(self.hostname + '/ccm/process/project-areas',
                              allow_redirects=True, verify=False)
-      
+
       if res.status_code == 200:
          oProjects = get_xml_tree(BytesIO(str(res.text).encode()),
                                   bdtd_validation=False)
@@ -174,15 +175,15 @@ Get the complexity values for the specified project, using cache if available.
       """
       if not hasattr(self, '_complexity_cache'):
          self._complexity_cache = {}
-      
+
       if not project_id:
          if not self.project['id']:
             self.__get_projectID()
          project_id = self.project['id']
-      
+
       if project_id in self._complexity_cache:
          return self._complexity_cache[project_id]
-      
+
       complexity_dict = self.__get_complexity(project_id)
       self._complexity_cache[project_id] = complexity_dict
       return complexity_dict
@@ -215,14 +216,14 @@ Get the complexity values for the specified project.
 
       if res.status_code != 200:
          raise Exception(f"Failed to request to get complexity, url: '{url}'")
-      
+
       complexity_dict = dict()
       list_complexity = res.json()['oslc:results']
       for item in list_complexity:
          complexity_dict[item['dcterms:identifier']] = item['rdf:about']
 
       return complexity_dict
-   
+
    def get_complexity_link(self, story_point, project_id=None):
       """
 Get the complexity link for the specified story point.
@@ -330,7 +331,7 @@ Get the filed against URL for the specified file against name.
          project_id = self.project['id']
       # url = f"{self.hostname}/ccm/oslc/categories?projectURL={self.hostname}/ccm/process/project-areas/{project_id}&oslc.select=dc:title,rdfs:member,rtc_cm:hierarchicalName"
       url = f"{self.hostname}/ccm/oslc/categories?oslc.where=rtc_cm:projectArea=\"{project_id}\"&oslc.select=dc:title,rdfs:member,rtc_cm:hierarchicalName"
-      
+
       fileAgainst_url = self.__get_filedAgainst(url, fileAgainst_name)
       if not fileAgainst_url:
          raise Exception(f"Could not find fileAgainst '{fileAgainst_name}'")
@@ -372,7 +373,7 @@ Get the specified information from the URL.
             raise Exception(f"Could not get '{info}' from response of url '{url}'.")
       else:
          raise Exception(f"Request to url '{url}' unsuccessfully. Reason: {res.reason}")
-      
+
    def login(self):
       """
 Authenticate and establish a session with RTC.
@@ -386,7 +387,7 @@ Authenticate and establish a session with RTC.
             raise Exception(f"Failed to get project ID: {e}")
       else:
          raise Exception(f"Authenticate to RTC server {self.hostname} fail. Please verify your credential.")
-        
+
    def get_workitem(self, ticket_id):
       """
 Get a work item by its ID.
@@ -451,6 +452,11 @@ Update a work item with the specified attributes.
             oAttr = oWorkItem.find(self.xml_attr_mapping[attr], nsmap)
             if attr == "story_point":
                oAttr.set("{%s}resource" % nsmap['rdf'], self.get_complexity_link(val))
+            elif attr == "labels" and isinstance(val, list):
+               oAttr.clear()
+               # replace spaces with underscores due to RTC tag can not contains space
+               modified_val = list(map(lambda s: s.replace(" ", "_"), val))
+               oAttr.text = ", ".join(modified_val)
             else:
                oAttr.clear()
                oAttr.text = val
@@ -506,9 +512,9 @@ Update the state of a work item.
             break
       if not req_action:
          raise Exception(f"Could not found the proper action to change state from '{current_state}' to '{new_state}'")
-      
+
       return self.update_workitem_action(ticket_id, req_action)
-      
+
    def update_workitem_action(self, ticket_id, action):
       """
 Update the state of a work item by performing the specified action.
@@ -537,8 +543,8 @@ Update the state of a work item by performing the specified action.
       res = self.session.get(workitem_url, allow_redirects=True, verify=False, headers=headers)
       if res.status_code != 200:
          raise Exception(f"Could not found workitem {ticket_id}")
-      
-      action_res = self.session.put(f"{workitem_url}?_action=com.ibm.team.apt.storyWorkflow.action.{action}", 
+
+      action_res = self.session.put(f"{workitem_url}?_action=com.ibm.team.apt.storyWorkflow.action.{action}",
                                     allow_redirects=True, verify=False, headers=headers, data=res.text)
       if action_res.status_code != 200:
          raise Exception(f"Failed in requesting to change state of workitem {ticket_id}")
@@ -624,6 +630,13 @@ Create a new work item.
 
       title = escape_xml_content(title)
       description = escape_xml_content(description)
+
+      tags = ""
+      if 'labels' in kwargs:
+         # replace spaces with underscores due to RTC tag can not contains space
+         labels = list(map(lambda s: s.replace(" ", "_"), kwargs['labels']))
+         tags = ", ".join(labels)
+
       req_payload = workitem_template.format(**locals())
       # req_payload = workitem_template.format(
       #    project_id=project_id,
@@ -641,10 +654,10 @@ Create a new work item.
       response = requests.post(
          req_url,
          data=req_payload,
-         headers=self.headers, 
+         headers=self.headers,
          verify=False
       )
-      
+
       if response.status_code == 201:
          return response.json()['dcterms:identifier']
       else:
