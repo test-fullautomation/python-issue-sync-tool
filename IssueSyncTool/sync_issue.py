@@ -8,7 +8,7 @@ from .version import VERSION, VERSION_DATE
 from .utils import CONFIG_SCHEMA
 from argparse import ArgumentParser
 from jsonschema import validate
-from .tracker import Tracker
+from .tracker import Tracker, Status
 from .user import UserManagement
 
 class Logger:
@@ -210,6 +210,9 @@ Create and configure the ArgumentParser instance, then process command-line argu
                            help='if set, then just dump the tickets without syncing')
    cli_parser.add_argument('--csv', action="store_true",
                            help='if set, then store the sync status to csv file sync_status.csv')
+   cli_parser.add_argument('--nosync', action="store_true",
+                           help='If set, issues with the nosync label will not be synced, '+
+                                'and any previously synced issues with this label will be closed.')
    cli_parser.add_argument('-v', '--version', action='version',
                            version=f"v{VERSION} ({VERSION_DATE})",
                            help='version of the IssueSyncTool')
@@ -465,6 +468,7 @@ Main function to sync issues between tracking systems.
       list_issue = tracker.get_tickets(**config['tracker'][source]['condition'])
 
       for issue in list_issue:
+         sync_status = "new"
          issue_counter += 1
          Logger.log(issue.__str__(), indent=2)
          assignee = None
@@ -482,19 +486,30 @@ Main function to sync issues between tracking systems.
                Logger.log_warning(f"{config['destination'][0].title()} issue {issue.destination_id} cannot be found.", indent=4)
                continue
 
-            if not args.dryrun:
-               process_sync_issues(issue, tracker, dest_issue, des_tracker, component_mapping)
-            csv_content.append(f"{issue_counter}, {issue.tracker.title()} {issue.id}, {issue.url}, {config['destination'][0]} {issue.destination_id}, synced\n")
+            if args.nosync and 'nosync' in issue.labels:
+               sync_status = "closed nosync"
+               if not args.dryrun:
+                  Logger.log(f"Closing {dest_issue.tracker.title()} issue {dest_issue.id} due to 'nosync'", indent=4)
+                  des_tracker.update_ticket_state(dest_issue, Status.closed)
+            else:
+               sync_status = "synced"
+               if not args.dryrun:
+                  process_sync_issues(issue, tracker, dest_issue, des_tracker, component_mapping)
+            csv_content.append(f"{issue_counter}, {issue.tracker.title()} {issue.id}, {issue.url}, {config['destination'][0]} {issue.destination_id}, {sync_status}\n")
             sync_issue += 1
 
          else:
-            res_id = ""
-            # create new issue on destination tracker
-            if not args.dryrun:
-               res_id = process_new_issue(issue, des_tracker, assignee, component_mapping)
+            if args.nosync and 'nosync' in issue.labels:
+               sync_status = "nosync"
+            else:
+               res_id = ""
+               # create new issue on destination tracker
+               if not args.dryrun:
+                  res_id = process_new_issue(issue, des_tracker, assignee, component_mapping)
+               new_issue += 1
 
-            csv_content.append(f"{issue_counter}, {issue.tracker.title()} {issue.id}, {issue.url}, {config['destination'][0]} {res_id}, new\n")
-            new_issue += 1
+            csv_content.append(f"{issue_counter}, {issue.tracker.title()} {issue.id}, {issue.url}, {config['destination'][0]} {res_id}, {sync_status}\n")
+
 
       Logger.log(f"{new_issue + sync_issue} {source.title()} issues has been synced (includes {new_issue} new creation) to {config['destination'][0]} successfully!\n", indent=2)
 
