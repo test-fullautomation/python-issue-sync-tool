@@ -41,6 +41,29 @@ Parse xml object from file.
       raise RuntimeError(f"Could not parse xml data. Reason: {reason}")
    return oTree
 
+def escape_xml_content(content):
+   """
+Escape special XML characters.
+
+**Arguments:**
+
+* ``content``
+
+  / *Condition*: required / *Type*: str /
+
+  The content need to be escaped.
+
+**Returns:**
+
+* / *Type*: str /
+
+  The escaped content.
+   """
+   entities = {
+      "\u00A0": " "  # Non-breaking space &nbsp
+   }
+   return escape(content, entities)
+
 class RTCClient():
    """
 Client for interacting with RTC (Rational Team Concert).
@@ -599,8 +622,8 @@ Create a new work item.
       with open(os.path.join(self.templates_dir ,'workitem.xml')) as fh:
          workitem_template = fh.read()
 
-      title = escape(title)
-      description = escape(description)
+      title = escape_xml_content(title)
+      description = escape_xml_content(description)
       req_payload = workitem_template.format(**locals())
       # req_payload = workitem_template.format(
       #    project_id=project_id,
