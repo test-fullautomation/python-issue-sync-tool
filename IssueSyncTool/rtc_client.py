@@ -5,6 +5,7 @@ from io import BytesIO
 from lxml import etree
 import os
 from xml.sax.saxutils import escape
+from collections import defaultdict, deque
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 def get_xml_tree(file_name, bdtd_validation=True):
@@ -75,8 +76,18 @@ Client for interacting with RTC (Rational Team Concert).
       "story_point": "oslc_cm:ChangeRequest//rtc_ext:com.ibm.team.apt.attribute.complexity",
       "labels": "oslc_cm:ChangeRequest//dcterms:subject"
    }
+   workflow_id = "com.ibm.team.apt.storyWorkflow"
+   state_transition = {
+      "Start Working": [ "New", "In Development"],
+      "Complete Development": ["In Development", "In Test"],
+      "Accept": ["In Test", "Done"],
+      "Reopen": ["Done", "In Development"],
+      "Reject": ["In Test", "In Development"],
+      "Defer": ["In Development", "New"]
+   }
 
-   def __init__(self, hostname, project, username, token, file_against=None):
+   def __init__(self, hostname, project, username, token, file_against=None,
+                workflow_id=None, state_transition=None):
       """
 Initialize the RTCClient instance.
 
@@ -131,6 +142,119 @@ Initialize the RTCClient instance.
 
       self.login()
       self.defined_complexity = self.__get_complexity_cache()
+      if workflow_id:
+         self.workflow_id = workflow_id
+      if state_transition:
+         self.state_transition = state_transition
+      self.state_transition_graph = None
+
+   def __build_state_transition(self, state_transition=None):
+      """
+Build state transition graph from given state_transition definition.
+
+**Arguments:**
+
+* ``state_transition``
+
+  / *Condition*: optional / *Type*: dict /
+
+  The custom state transition definition.
+      """
+      if not state_transition:
+         state_transition = self.state_transition
+
+      transition_graph = defaultdict(list)
+      for action, (from_state, to_state) in state_transition.items():
+         transition_graph[from_state].append((to_state, action))
+
+      self.state_transition_graph = transition_graph
+
+   def __find_action_state_change(self, start_state, end_state):
+      """
+Get the list of action to change workitem status from start_state to end_state.
+
+**Arguments:**
+
+* ``start_state``
+
+  / *Condition*: required / *Type*: str /
+
+  The current state.
+
+* ``end_state``
+
+  / *Condition*: required / *Type*: str /
+
+  The target state.
+
+**Returns:**
+
+* / *Type*: list /
+
+  The sequence of actions.
+      """
+      queue = deque([(start_state, [])])  # (current_state, path of actions)
+      visited = set()
+
+      while queue:
+         current_state, path = queue.popleft()
+
+         if current_state == end_state:
+               return path
+
+         if current_state not in visited:
+               visited.add(current_state)
+               for neighbor, action in self.state_transition_graph[current_state]:
+                  if neighbor not in visited:
+                     queue.append((neighbor, path + [action]))
+      return None
+
+   def __get_action_identifier(self, project_id=None, workflow_id=None):
+      """
+Get the action identifier for changing workitem status.
+
+**Arguments:**
+
+* ``project_id``
+
+  / *Condition*: optional / *Type*: str / *Default*: None /
+
+  The project ID.
+
+* ``workflow_id``
+
+  / *Condition*: optional / *Type*: str / *Default*: None /
+
+  The using workflow ID.
+
+**Returns:**
+
+* ``action_identifier_dict``
+
+  / *Type*: dict /
+
+  A dictionary of action names and their identifiers.
+      """
+      if not project_id:
+         project_id = self.project['id']
+      if not workflow_id:
+         workflow_id = self.workflow_id
+
+      headers = copy.deepcopy(self.headers)
+      del headers["OSLC-Core-version"]
+      url = f"{self.hostname}/ccm/oslc/workflows/{project_id}/actions/{workflow_id}"
+      res = requests.get(url, allow_redirects=True, verify=False, headers=headers)
+
+      if res.status_code != 200:
+         raise Exception(f"Failed to request to get action definition, url: '{url}'")
+
+      action_identifier_dict = dict()
+      list_action = res.json()
+      for item in list_action:
+         action_identifier_dict[item['dc:title']] = item['dc:identifier']
+
+      return action_identifier_dict
+
    def __get_projectID(self):
       """
 Get the project ID for the specified project name.
@@ -448,7 +572,7 @@ Update a work item with the specified attributes.
 
          for attr, val in kwargs.items():
             if attr not in self.xml_attr_mapping:
-               raise Exception(f"Does not support to update workitem '{attr}")
+               raise Exception(f"Does not support to update workitem '{attr}'")
             oAttr = oWorkItem.find(self.xml_attr_mapping[attr], nsmap)
             if attr == "story_point":
                oAttr.set("{%s}resource" % nsmap['rdf'], self.get_complexity_link(val))
@@ -495,25 +619,14 @@ Update the state of a work item.
 
 * ``None``
       """
-      # States transitions" "New" <-> "In Development" <-> "In Test" <-> "Done"
+      self.__build_state_transition()
+      action_list = self.__find_action_state_change(current_state, new_state)
 
-      mapping_action = {
-         "startWorking": [ "New", "In Development"],
-         "completeDevelopment": ["In Development", "In Test"],
-         "accept": ["In Test", "Done"],
-         "reopen": ["Done", "In Development"],
-         "reject": ["In Test", "In Development"],
-         "defer": ["In Development", "New"]
-      }
-      req_action = None
-      for action, states in mapping_action.items():
-         if current_state.lower() == states[0].lower() and new_state.lower() == states[1].lower():
-            req_action = action
-            break
-      if not req_action:
+      if not action_list:
          raise Exception(f"Could not found the proper action to change state from '{current_state}' to '{new_state}'")
 
-      return self.update_workitem_action(ticket_id, req_action)
+      for action in action_list:
+         self.update_workitem_action(ticket_id, action)
 
    def update_workitem_action(self, ticket_id, action):
       """
@@ -544,7 +657,12 @@ Update the state of a work item by performing the specified action.
       if res.status_code != 200:
          raise Exception(f"Could not found workitem {ticket_id}")
 
-      action_res = self.session.put(f"{workitem_url}?_action=com.ibm.team.apt.storyWorkflow.action.{action}",
+      action_identifier = self.__get_action_identifier()
+      if action not in action_identifier.keys():
+         raise Exception(f"Could not found action '{action}'")
+
+      action_id = action_identifier[action]
+      action_res = self.session.put(f"{workitem_url}?_action={action_id}",
                                     allow_redirects=True, verify=False, headers=headers, data=res.text)
       if action_res.status_code != 200:
          raise Exception(f"Failed in requesting to change state of workitem {ticket_id}")

@@ -32,7 +32,7 @@ Class representing the status of issues in different tracker systems.
          "Done": "Closed"
       }
    }
-   
+
    open = "Open"
    inProgress = "In Progress"
    closed = "Closed"
@@ -66,12 +66,12 @@ Normalize the issue status to a standard format.
       """
       if tracker_type not in Status.STATUS_MAPPING.keys():
          raise ValueError(f"Unsupported tracker type {tracker_type}")
-      
+
       if native_status not in Status.STATUS_MAPPING[tracker_type].keys():
          raise ValueError(f"Unsupported status {native_status} for {tracker_type.title()} issue")
-      
+
       return Status.STATUS_MAPPING[tracker_type][native_status]
-   
+
    @staticmethod
    def get_native_status(tracker_type: str, normalized_status: str) -> str:
       """
@@ -101,13 +101,13 @@ Get the native status from the normalized status.
       """
       if tracker_type not in Status.STATUS_MAPPING.keys():
          raise Exception(f"Unsupported tracker type {tracker_type}")
-      
+
       if normalized_status not in Status.STATUS_MAPPING[tracker_type].values():
          raise Exception(f"Unsupported status {normalized_status}")
-      
+
       for key, val in Status.STATUS_MAPPING[tracker_type].items():
-         if val == normalized_status: 
-            return key 
+         if val == normalized_status:
+            return key
 
 class Ticket:
    """
@@ -334,7 +334,7 @@ E.g `[ 1234 ] Title of already synced ticket`
          self.destination_id = match.group(1)
          return True
       return False
-   
+
 class TrackerService(ABC):
    """
 Abstraction class of Tracker Service.
@@ -516,7 +516,7 @@ Convert given estimated time (in seconds) to story points.
       if not isinstance(seconds, int) or seconds < 0:
          raise ValueError("seconds must be a non-negative integer")
       return int(seconds / 3600 / cls.HOUR_PER_STORYPOINT)
-   
+
 class JiraTracker(TrackerService):
    """
 Tracker client to integrate with issues on Jira.
@@ -596,7 +596,7 @@ Connect to the Jira tracker.
       self.project = project
       self.hostname = hostname
       self.tracker_client = JIRA(hostname, token_auth=token)
-   
+
    def get_ticket(self, id: str) -> Ticket:
       """
 Get a ticket by its ID.
@@ -746,7 +746,7 @@ Get the story points of an issue.
       # customfield_10224 from API response contains Estimate story point attribute
       if 'customfield_10224' in issue.raw['fields'] and issue.raw['fields']['customfield_10224']:
          return int(issue.raw['fields']['customfield_10224'])
-   
+
       # convert estimation time to story point
       # if 'timetracking' in issue.raw['fields'] and issue.raw['fields']['timetracking'] and 'remainingEstimateSeconds' in issue.raw['fields']['timetracking']:
       #    return self.time_estimate_to_story_point(issue.raw['fields']['timetracking']['remainingEstimateSeconds'])
@@ -829,7 +829,7 @@ Normalize an issue to a Ticket object.
                     labels=[label.name for label in issue.labels],
                     story_point=self.get_story_point_from_labels([label.name for label in issue.labels]),
                     issue_client=issue)
-   
+
    def __get_repository_client(self, repository: str = None):
       """
 Get the repository client for the specified repository.
@@ -859,7 +859,7 @@ Get the repository client for the specified repository.
             raise Exception(f"More than one GitHub repository is configured, please specify the working repository")
       else:
          raise Exception(f"Missing GitHub repository information")
-      
+
    def connect(self, project: str, repository: Union[list, str], token: str, hostname: str = "api.github.com"):
       """
 Connect to the GitHub tracker.
@@ -899,7 +899,7 @@ Connect to the GitHub tracker.
          raise Exception("'repository' parameter should be list of repositories or string of single repo")
       auth = Auth.Token(token)
       self.tracker_client = Github(auth=auth, base_url=f"https://{hostname}")
-   
+
    def get_tickets(self, **kwargs) -> list[Ticket]:
       """
 Get tickets from the GitHub tracker.
@@ -935,7 +935,7 @@ Get tickets from the GitHub tracker.
                   list_issues.append(issue)
 
       return list_issues
-   
+
    def get_ticket(self, id: int, repository: str = None) -> Ticket:
       """
 Get a ticket by its ID.
@@ -1058,7 +1058,7 @@ Create a new label in the GitHub tracker.
          'name': label_name,
          'color': color if color else self.SPRINT_LABEL_COLOR
       }
-      
+
       label_pros['color'] = label_pros['color'].replace('#', '')
       gh_repo.create_label(**label_pros)
 
@@ -1333,7 +1333,7 @@ Connect to the Gitlab tracker.
          self.project = [project]
       else:
          raise Exception("'project' parameter should be list of projects or string of single project")
-      
+
       self.tracker_client = Gitlab(hostname, private_token=token)
 
    def get_ticket(self, id: int, project: str = None) -> Ticket:
@@ -1392,7 +1392,7 @@ Get tickets from the Gitlab tracker.
          exclude_condition = kwargs['exclude']
          del kwargs['exclude']
 
-      # 'assignee' is transformed to 'assignee_username' for client argument 
+      # 'assignee' is transformed to 'assignee_username' for client argument
       if 'assignee' in kwargs:
          assignee_val  = kwargs['assignee']
          kwargs['assignee_username'] = assignee_val
@@ -1405,7 +1405,7 @@ Get tickets from the Gitlab tracker.
             issue = self.__normalize_issue(issue, project)
             if self.exclude_issue_by_condition(issue, exclude_condition):
                list_issues.append(issue)
-      
+
       return list_issues
 
    def create_ticket(self, project: str = None, **kwargs) -> str:
@@ -1464,7 +1464,7 @@ Update an existing ticket in the Gitlab tracker.
       """
       gl_project = self.__get_project_client(project)
       edit_issue = gl_project.issues.get(id)
-      
+
       for attr, val in kwargs.items():
          setattr(edit_issue, attr, val)
 
@@ -1535,7 +1535,7 @@ Create a new label in the Gitlab tracker.
          'name': label_name,
          'color': color if color else self.SPRINT_LABEL_COLOR
       }
-      
+
       gl_project.labels.create(label_pros)
 
 class RTCTracker(TrackerService):
@@ -1551,7 +1551,7 @@ Initialize the RTCTracker instance.
       super().__init__()
       self.project = None
       self.hostname = None
-      
+
       self.returned_prop = ["dc:title",
                             "dc:identifier",
                             "rtc_cm:state",
@@ -1591,7 +1591,7 @@ Normalize a list of issues to Ticket objects.
                      version=self.get_plannedFor(issue),
                      issue_client=self.tracker_client
                      ) for issue in issues]
-   
+
    def connect(self, project: str, hostname: str, username: Union[list, str] = None, password: str = None, token: str = None, file_against: str = None):
       """
 Connect to the RTC tracker.
@@ -1729,27 +1729,14 @@ Update the state of a ticket.
 
   The new state of the ticket.
       """
-      if issue.status == Status.open:
-         if new_state == Status.inProgress:
-            self.tracker_client.update_workitem_action(issue.id, "startWorking")
-         if new_state == Status.closed:
-            self.tracker_client.update_workitem_action(issue.id, "startWorking")
-            self.tracker_client.update_workitem_action(issue.id, "completeDevelopment")
-            self.tracker_client.update_workitem_action(issue.id, "accept")
-      elif issue.status == Status.inProgress:
-         if new_state == Status.open:
-            self.tracker_client.update_workitem_action(issue.id, "defer")
-         if new_state == Status.closed:
-            self.tracker_client.update_workitem_action(issue.id, "completeDevelopment")
-            self.tracker_client.update_workitem_action(issue.id, "accept")
-      elif issue.status == Status.closed:
-         if new_state == Status.inProgress:
-            self.tracker_client.update_workitem_action(issue.id, "reopen")
-         if new_state == Status.open:
-            self.tracker_client.update_workitem_action(issue.id, "reopen")
-            self.tracker_client.update_workitem_action(issue.id, "defer")
-      else:
-         raise NotImplemented(f"Does not support status change from '{issue.status}'")
+
+      if issue.status != new_state:
+         try:
+            current_state = Status.get_native_status(self.TYPE, issue.status)
+            new_state = Status.get_native_status(self.TYPE, new_state)
+            self.tracker_client.update_workitem_state(issue.id, current_state, new_state)
+         except:
+            raise NotImplemented(f"Does not support status change from '{issue.status}'")
 
    def create_ticket(self, **kwargs) -> str:
       """
