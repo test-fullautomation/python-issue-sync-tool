@@ -46,6 +46,9 @@ issue tracking platforms. The main operations include:
          \end{itemize}
 \end{enumerate}
 
+The tool also provides additional features to enhance the synchronization process,
+please refer \hyperlink{additional-features}{Additional features} section for more details.
+
 \hypertarget{tool-usage}{%
 \section{Tool usage}\label{tool-usage}}
 
@@ -182,11 +185,11 @@ Example configuration:
 
 In this example:
 \begin{itemize}
-    \item The user \texttt{Tran Duy Ngoan} is mapped to \texttt{ngoan1608} in
-          GitHub, \texttt{ntd1hc} in Jira, and \texttt{ntd1hc} in RTC.
+    \item The user \plog{Tran Duy Ngoan} is mapped to \plog{ngoan1608} in
+          GitHub, \plog{ntd1hc} in Jira, and \plog{ntd1hc} in RTC.
     \item When syncing issues between GitHub, Jira, and RTC, the tool ensures
-          that issues assigned to \texttt{ngoan1608} in GitHub and
-          \texttt{ntd1hc} in Jira will be assigned to \texttt{ntd1hc} in RTC,
+          that issues assigned to \plog{ngoan1608} in GitHub and
+          \plog{ntd1hc} in Jira will be assigned to \plog{ntd1hc} in RTC,
           ensuring consistent user data across all platforms.
 \end{itemize}
 
@@ -232,4 +235,123 @@ Example issue:
    \item Repository: \plog{python-genpackagedoc}
    \item Original Issue Title: \plog{Fix missing documentation}
    \item Destination Tracker Issue Title: \plog{[GenPkgDoc] Fix missing documentation}
+\end{itemize}
+
+\hypertarget{additional-features}{%
+\section{Additional features}\label{additional-features}}
+
+\subsection{\pcode{nosync} Label}
+The \pcode{nosync} label is a special label that can be applied to issues in the
+source tracker (e.g., GitHub, Jira, Gitlab) to prevent them from being synced to
+the destination tracker (RTC).
+
+When the \pcode{nosync} label is applied to an issue, the tool will not sync that
+issue to RTC.
+
+If an issue was previously synced and later labeled with \pcode{nosync}, the tool
+will close the issue in RTC to indicate that it should no longer be tracked.
+
+To use this feature, add the \pcode{--nosync} argument when running the tool:
+
+\begin{pythonlog}
+IssueSyncTool --config <your-config-file> --nosync
+\end{pythonlog}
+
+\subsection{Status-only Update}
+The \pcode{--status-only} argument allows you to update only the status of
+previously synced issues on the destination tracker (RTC).
+
+This feature is useful when you want to update the status of issues without
+modifying other fields or creating new work items.
+
+To use this feature, add the \pcode{--status-only} argument when running the tool:
+
+\begin{pythonlog}
+IssueSyncTool --config <your-config-file> --status-only
+\end{pythonlog}
+
+\newpage
+\subsection{User-defined Workflow (only for RTC destination tracker)}
+The tool supports user-defined workflows (state transitions) in RTC.
+
+You can configure the tool to update the status of issues based on the workflow
+defined in RTC.
+
+At least, all actions from \plog{New} to \plog{Done} and vice-versa should be
+defined in this configuration to ensure the tool can update the status of issues
+correctly.
+
+Example of user-defined workflow in RTC:
+
+\begin{figure}[h!]
+   \includegraphics[width=1\linewidth]{./pictures/user-defined-workflow.png}
+   \caption{User-defined workflow in RTC}
+\end{figure}
+
+To use this feature, add the following configuration to the JSON file:
+
+\begin{pythoncode}
+{
+   ...
+   "rtc": {
+      ...
+      "workflow_id" : "com.ibm.team.workitem.harmonizedStory.workflow",
+      "state_transition": {
+         "Start Working": [ "New", "In Development"],
+         "Ready for Acceptance": ["In Development", "Ready for Acceptance"],
+         "Done": ["Ready for Acceptance", "Done"],
+         "Reopen": ["Done", "New"]
+      }
+   }
+   ...
+}
+\end{pythoncode}
+
+In this example:
+\begin{itemize}
+   \item The \pcode{state_transitions} section defines the allowed state
+         transitions for issues in RTC.
+   \item For instance, an issue in the \pcode{open} state can transition to
+         \pcode{in progress}, and so on.
+   \item By defining the state transitions, you can ensure that issues are
+         updated according to the workflow defined in RTC.
+\end{itemize}
+
+\subsection{csv Output}
+The \pcode{--csv} argument allows you to store the sync status of issues in a
+CSV file named \pcode{sync_status.csv}.
+
+This file contains information about the sync process, including the issue ID,
+source tracker, destination tracker, and sync status.
+
+To use this feature, add the \pcode{--csv} argument when running the tool:
+
+\begin{pythonlog}
+IssueSyncTool --config <your-config-file> --csv
+\end{pythonlog}
+
+Sample output in \pcode{sync_status.csv}:
+\begin{pythonlog}
+No., Ticket, Source Link, Destination ID, Stage
+1, Github 2, https://github.com/ngoan1608/ntd1hc-sample-deb/issues/2, rtc , skipped
+2, Github 1, https://github.com/ngoan1608/ntd1hc-sample-deb/issues/1, rtc 620036, synced
+
+\end{pythonlog}
+
+Possible value of status and their meaning:
+\begin{itemize}
+   \item \pcode{new}: The issue is new creation in the destination tracker.
+   \item \pcode{synced}: The issue has been successfully synced to the
+                         destination tracker.
+   \item \pcode{not found}: The issue contains synced ID in title but was not
+                            found in the destination tracker.
+   \item \pcode{skipped}: The issue was not existing in destination tracker and
+                          skipped during the sync process (when using
+                          \plog{--status-only}).
+   \item \pcode{nosync}: The issue has been labeled with \pcode{nosync} and will
+                         not be synced to the destination tracker (when using
+                         \plog{--nosync}).
+   \item \pcode{closed nosync}: The issue was previously synced and later labeled
+                                with \pcode{nosync}, so it has been closed in the
+                                destination tracker (when using \plog{--nosync}).
 \end{itemize}

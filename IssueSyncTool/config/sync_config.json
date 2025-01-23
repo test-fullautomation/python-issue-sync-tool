@@ -36,7 +36,7 @@
             "Ready for Acceptance": ["In Development", "Ready for Acceptance"],
             "Done": ["Ready for Acceptance", "Done"],
             "Reopen": ["Done", "New"]
-         },
+         }
       }
    },
    "user": [
