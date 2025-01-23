@@ -1592,7 +1592,9 @@ Normalize a list of issues to Ticket objects.
                      issue_client=self.tracker_client
                      ) for issue in issues]
 
-   def connect(self, project: str, hostname: str, username: Union[list, str] = None, password: str = None, token: str = None, file_against: str = None):
+   def connect(self, project: str, hostname: str, username: str = None,
+               token: str = None, file_against: str = None,
+               workflow_id: str = None, state_transition: dict = None):
       """
 Connect to the RTC tracker.
 
@@ -1636,7 +1638,8 @@ Connect to the RTC tracker.
       """
       self.project = project
       self.hostname = hostname
-      self.tracker_client = RTCClient(hostname, project, username, token, file_against)
+      self.tracker_client = RTCClient(hostname, project, username, token,
+                                      file_against, workflow_id, state_transition)
 
    def get_ticket(self, id: Union[str, int]) -> Ticket:
       """
@@ -1736,7 +1739,7 @@ Update the state of a ticket.
             new_state = Status.get_native_status(self.TYPE, new_state)
             self.tracker_client.update_workitem_state(issue.id, current_state, new_state)
          except:
-            raise NotImplemented(f"Does not support status change from '{issue.status}'")
+            raise Exception(f"Error when updating issue status from '{issue.status}' to '{new_state}'")
 
    def create_ticket(self, **kwargs) -> str:
       """

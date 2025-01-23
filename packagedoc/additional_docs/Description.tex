@@ -15,27 +15,27 @@
 \hypertarget{tool-features}{%
 \section{Tool features}\label{tool-features}}
 
-The \pkg\ facilitates seamless integration and synchronization between multiple 
+The \pkg\ facilitates seamless integration and synchronization between multiple
 issue tracking platforms. The main operations include:
 
 \begin{enumerate}
    \item Configuration Parsing
          \begin{itemize}
-            \item Reads the JSON configuration file to understand the 
+            \item Reads the JSON configuration file to understand the
                   synchronization scope and behavior.
          \end{itemize}
 
    \item Issue Collection
          \begin{itemize}
-            \item Fetches issues from GitHub, Gitlab and Jira based on the 
+            \item Fetches issues from GitHub, Gitlab and Jira based on the
                   specified conditions.
-            \item Uses user mappings to ensure issues are associated correctly 
+            \item Uses user mappings to ensure issues are associated correctly
                   across platforms.
          \end{itemize}
 
    \item Issue Update
          \begin{itemize}
-            \item Updates the source issues with RTC IDs and planning data after 
+            \item Updates the source issues with RTC IDs and planning data after
                   synchronization.
          \end{itemize}
 
@@ -67,10 +67,13 @@ optional arguments:
   --config CONFIG  path to configuration json file
   --dryrun         if set, then just dump the tickets without syncing
   --csv            if set, then store the sync status to csv file sync_status.csv
+  --nosync         If set, issues with the 'nosync' label will not be synced,
+                   and any previously synced issues with this label will be closed.
+  --status-only    If set, only update status of synced issue on destination tracker.
   -v, --version    version of the IssueSyncTool
 \end{pythonlog}
 
-Sample command to run \pkg\ with the configuration JSON file and save sync 
+Sample command to run \pkg\ with the configuration JSON file and save sync
 status as csv file:
 
 \begin{pythonlog}
@@ -80,18 +83,18 @@ IssueSyncTool --config <your-config-file> --csv
 \hypertarget{config-file}{%
 \section{JSON Configuration File}\label{config-file}}
 
-The tool uses a JSON configuration file to define synchronization behavior. 
+The tool uses a JSON configuration file to define synchronization behavior.
 Below is an explanation of the sample configuration:
 
 \subsection{Source and Destination Platforms}
 \begin{pythoncode}
 {
-   "source": ["github", "gitlab", jira"],
+   "source": ["github", "gitlab", "jira"],
    "destination": ["rtc"]
    ...
 }
 \end{pythoncode}
-This configuration specifies GitHub and Jira as sources and RTC as the 
+This configuration specifies GitHub and Jira as sources and RTC as the
 destination for synchronization.
 
 \subsection{Tracker Configurations}
@@ -115,11 +118,11 @@ destination for synchronization.
       },
       ...
    }
-   ... 
+   ...
 }
 \end{pythoncode}
 
-Above code is sample configuration of Github tracker which contain the 
+Above code is sample configuration of Github tracker which contain the
 information about:
 
 \begin{itemize}
@@ -128,7 +131,7 @@ information about:
     \item \textbf{Repositories:} List of repositories to collect issues from.
     \item \textbf{Condition:} Define the condition (query) to collect the issues.
           \begin{itemize}
-            \item \pcode{"state"}: Syncs only issues in the specified state, 
+            \item \pcode{"state"}: Syncs only issues in the specified state,
                   e.g., \pcode{"open"}.
             \item \pcode{"exclude"}: Specifies negative conditions. For example:
             \begin{itemize}
@@ -141,29 +144,29 @@ information about:
 The other tracker can be configured as the same way.
 
 \subsection{User Mapping}
-User mapping ensures that the correct user is assigned in the synchronization 
-process across different platforms. 
-In the configuration file, each user is mapped to their corresponding accounts 
-across GitHub, Jira, Gitlab and RTC. This mapping helps to ensure that the right 
+User mapping ensures that the correct user is assigned in the synchronization
+process across different platforms.
+In the configuration file, each user is mapped to their corresponding accounts
+across GitHub, Jira, Gitlab and RTC. This mapping helps to ensure that the right
 assignee is applied to issues in the appropriate tracker system.
 
 \begin{itemize}
-   \item The \texttt{user} section of the configuration file specifies the 
-         mapping between the users' names in GitHub, Gitlab, Jira and RTC. 
-   \item This ensures that the correct user is set as the assignee in each 
+   \item The \texttt{user} section of the configuration file specifies the
+         mapping between the users' names in GitHub, Gitlab, Jira and RTC.
+   \item This ensures that the correct user is set as the assignee in each
          platform when syncing issues.
-   \item For instance, when syncing an issue from Jira to RTC, the tool will 
-         automatically assign the same user (as per the mapping) to the issue in RTC. 
-   \item If the user has different usernames across platforms 
-         (e.g., "githubUser" in GitHub, "jiraUser" in Jira, and "rtcUser" in RTC), 
-         the tool ensures the correct mapping is applied so that all systems 
+   \item For instance, when syncing an issue from Jira to RTC, the tool will
+         automatically assign the same user (as per the mapping) to the issue in RTC.
+   \item If the user has different usernames across platforms
+         (e.g., "githubUser" in GitHub, "jiraUser" in Jira, and "rtcUser" in RTC),
+         the tool ensures the correct mapping is applied so that all systems
          reflect the same assignee.
 \end{itemize}
 
 Example configuration:
 \begin{pythoncode}
 {
-   ... 
+   ...
    "user": [
       {
          "name": "Tran Duy Ngoan",
@@ -172,17 +175,61 @@ Example configuration:
          "gitlab": "ntd1hc",
          "rtc": "ntd1hc"
       },
-      ... 
-   ]   
+      ...
+   ]
 }
 \end{pythoncode}
 
 In this example:
 \begin{itemize}
-    \item The user \texttt{Tran Duy Ngoan} is mapped to \texttt{ngoan1608} in 
+    \item The user \texttt{Tran Duy Ngoan} is mapped to \texttt{ngoan1608} in
           GitHub, \texttt{ntd1hc} in Jira, and \texttt{ntd1hc} in RTC.
-    \item When syncing issues between GitHub, Jira, and RTC, the tool ensures 
-          that issues assigned to \texttt{ngoan1608} in GitHub and 
-          \texttt{ntd1hc} in Jira will be assigned to \texttt{ntd1hc} in RTC, 
+    \item When syncing issues between GitHub, Jira, and RTC, the tool ensures
+          that issues assigned to \texttt{ngoan1608} in GitHub and
+          \texttt{ntd1hc} in Jira will be assigned to \texttt{ntd1hc} in RTC,
           ensuring consistent user data across all platforms.
+\end{itemize}
+
+\subsection{Component Mapping}
+This configuration allows issues from specific repositories (components) to be
+synchronized to a destination tracker with a short name prefix in the issue
+title.
+This helps standardize and identify issues based on their originating repository
+in the destination tracker.
+
+Example configuration:
+\begin{pythoncode}
+{
+   ...
+   "component_mapping": {
+      "python-genpackagedoc": "GenPkgDoc",
+      "python-extensions-collection": "PyExtColl",
+      "python-jsonpreprocessor": "JPP",
+      "python-testresultdbaccess": "WebApp",
+      ...
+   }
+   ...
+}
+\end{pythoncode}
+
+Key-Value Explanation:
+\begin{itemize}
+   \item Key: The name of the repository/component from which the issue
+         originates (e.g., \plog{python-genpackagedoc}).
+   \item Value: The short name that will be used as a prefix in the issue title
+         when synchronized to the destination tracker (e.g., \plog{GenPkgDoc}).
+\end{itemize}
+
+When an issue is synchronized from a source repository to the destination
+tracker, the feature automatically applies the following changes:
+\begin{itemize}
+   \item Looks up the repository name in the \pcode{component_mapping} configuration.
+   \item Prepends the corresponding short name to the issue title as a prefix.
+\end{itemize}
+
+Example issue:
+\begin{itemize}
+   \item Repository: \plog{python-genpackagedoc}
+   \item Original Issue Title: \plog{Fix missing documentation}
+   \item Destination Tracker Issue Title: \plog{[GenPkgDoc] Fix missing documentation}
 \end{itemize}
