@@ -211,8 +211,10 @@ Create and configure the ArgumentParser instance, then process command-line argu
    cli_parser.add_argument('--csv', action="store_true",
                            help='if set, then store the sync status to csv file sync_status.csv')
    cli_parser.add_argument('--nosync', action="store_true",
-                           help='If set, issues with the nosync label will not be synced, '+
+                           help="If set, issues with the 'nosync' label will not be synced, "+
                                 'and any previously synced issues with this label will be closed.')
+   cli_parser.add_argument('--status-only', action="store_true",
+                           help='If set, only update status of synced issue on destination tracker.')
    cli_parser.add_argument('-v', '--version', action='version',
                            version=f"v{VERSION} ({VERSION_DATE})",
                            help='version of the IssueSyncTool')
@@ -273,6 +275,49 @@ Process the configuration JSON file.
    else:
       Logger.log_error(f"Given configuration JSON is not existing: '{path_file}'.", fatal_error=True)
 
+def process_title(title, component=None, component_mapping=None):
+   """
+Process title of the ticket with component mapping.
+
+**Arguments:**
+
+*  ``title``
+
+   / *Condition*: required / *Type*: str /
+
+   The issue title.
+
+*  ``component``
+
+   / *Condition*: optional / *Type*: str /
+
+   The component (repository) which issue is belong to.
+
+*  ``component_mapping``
+
+   / *Condition*: optional / *Type*: dict /
+
+   Component mappings for naming ticket title on destination tracker.
+
+**Returns:**
+
+*  ``title``
+
+   / *Type*: str /
+
+   The issue title for destination tracker.
+   """
+   # avoid unwanted destination tracker id in destination tracker title
+   if re.match(r"\[ \d+ \]", title):
+      title = re.sub(r"\[ \d+ \]", "", title).strip()
+
+   # process component mapping to add prefix [ {component_name} ] to title
+   if component_mapping:
+      if component and component in component_mapping:
+         title = f"[ {component_mapping[component]} ] {title}"
+
+   return title
+
 def process_new_issue(issue, des_tracker, assignee, component_mapping=None):
    """
 Process to create new issue on destination tracker and update original issue's
@@ -316,11 +361,7 @@ title with destination issue's id.
   The ID of the created issue on the destination tracker.
    """
    issue_desc = f"Original issue url: {issue.url}\n\n{issue.description}"
-
-   des_title = issue.title
-   if component_mapping:
-      if issue.component and issue.component in component_mapping:
-         des_title = f"[ {component_mapping[issue.component]} ] {issue.title}"
+   des_title = process_title(issue.title, issue.component, component_mapping)
 
    # Auto assign when missing assignee from original ticket
    assignee_id = ""
@@ -405,10 +446,8 @@ Defined sync attributes:
       des_tracker.update_ticket_state(dest_issue, org_issue.status)
 
    if not sync_only_status:
-      des_title = org_issue.title
-      if component_mapping:
-         if org_issue.component and org_issue.component in component_mapping:
-            des_title = f"[ {component_mapping[org_issue.component]} ] {org_issue.title}"
+      des_title = process_title(org_issue.title, org_issue.component, component_mapping)
+
       if dest_issue.title != des_title:
          Logger.log(f"Syncing 'Title', 'Description', 'Labels' and 'Story Point'", indent=6)
          des_tracker.update_ticket(dest_issue.id, title=des_title ,story_point=org_issue.story_point,
@@ -494,15 +533,17 @@ Main function to sync issues between tracking systems.
             else:
                sync_status = "synced"
                if not args.dryrun:
-                  process_sync_issues(issue, tracker, dest_issue, des_tracker, component_mapping)
+                  process_sync_issues(issue, tracker, dest_issue, des_tracker, component_mapping, args.status_only)
             csv_content.append(f"{issue_counter}, {issue.tracker.title()} {issue.id}, {issue.url}, {config['destination'][0]} {issue.destination_id}, {sync_status}\n")
             sync_issue += 1
 
          else:
+            res_id = ""
             if args.nosync and 'nosync' in issue.labels:
                sync_status = "nosync"
+            elif args.status_only:
+               sync_status = "skipped"
             else:
-               res_id = ""
                # create new issue on destination tracker
                if not args.dryrun:
                   res_id = process_new_issue(issue, des_tracker, assignee, component_mapping)

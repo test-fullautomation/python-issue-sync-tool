@@ -89,6 +89,8 @@ CONFIG_SCHEMA = {
                   "username": {"type": "string"},
                   "token": {"type": "string"},
                   "file_against": {"type": "string"},
+                  "workflow_id": {"type": "string"},
+                  "state_transition": {"type": "object"},
                   "condition": {
                      "$ref": "#/$defs/rtc_condition",
                      "exclude": {
@@ -130,10 +132,10 @@ CONFIG_SCHEMA = {
             "labels" : {
                "$ref": "#/$defs/string_or_array"
             },
-            "assignee" : { 
+            "assignee" : {
                "$ref": "#/$defs/string_or_array"
             },
-            "state" : { 
+            "state" : {
                "oneOf": [
                   {
                      "type": "array",
@@ -156,10 +158,10 @@ CONFIG_SCHEMA = {
             "labels" : {
                "$ref": "#/$defs/string_or_array"
             },
-            "assignee" : { 
+            "assignee" : {
                "$ref": "#/$defs/string_or_array"
             },
-            "state" : { 
+            "state" : {
                "oneOf": [
                   {
                      "type": "array",
