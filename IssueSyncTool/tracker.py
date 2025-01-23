@@ -927,6 +927,8 @@ Get tickets from the GitHub tracker.
          del kwargs['exclude']
       for repo in self.repositories:
          con_repo = self.tracker_client.get_repo(f"{self.project}/{repo}")
+         if ("labels" in kwargs) and isinstance(kwargs["labels"], str):
+            kwargs["labels"] = [kwargs["labels"]]
          issues = con_repo.get_issues(**kwargs)
          for issue in issues:
             if not issue.pull_request:
