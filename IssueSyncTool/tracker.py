@@ -1503,7 +1503,7 @@ Get the story points of an issue.
       # get story point from labels
       return self.get_story_point_from_labels(issue.labels)
 
-   def create_label(self, label_name: str, color: str = None, project: str = None):
+   def create_label(self, label_name: str, color: str = None, repository: str = None):
       """
 Create a new label in the Gitlab tracker.
 
@@ -1527,7 +1527,7 @@ Create a new label in the Gitlab tracker.
 
   The project name.
       """
-      gl_project = self.__get_project_client(project)
+      gl_project = self.__get_project_client(repository)
       list_existing_labels = gl_project.labels.list()
       for item in list_existing_labels:
          if item.name == label_name:

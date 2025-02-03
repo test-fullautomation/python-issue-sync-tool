@@ -434,7 +434,7 @@ Defined sync attributes:
    Logger.log(f"Updating {org_issue.tracker.title()} issue {org_issue.id}:", indent=4)
    if dest_issue.version:
       Logger.log(f"Adding sprint label '{dest_issue.version}'", indent=6)
-      org_tracker.create_label(dest_issue.version)
+      org_tracker.create_label(dest_issue.version, repository=org_issue.component)
       org_issue.update(labels=org_issue.labels+[dest_issue.version])
    else:
       Logger.log_warning(f"No version information from issue to be synced back", indent=6)
