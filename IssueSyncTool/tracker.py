@@ -467,7 +467,7 @@ Process to verify whether the given issue satisfies the exclude conditions.
    def get_story_point_from_labels(self, labels: list) -> int:
       """
 Process to get story points from issue labels.
-Example of story point labels: `1 point`, `2 points`, ...
+Example of story point labels: `1 pts`, `2 pts`, ...
 
 **Arguments:**
 
@@ -486,7 +486,8 @@ Example of story point labels: `1 point`, `2 points`, ...
   The story points extracted from the labels.
       """
       for label in labels:
-         story_point_label = re.match(r'(\d+)\s*point(s)?', label)
+         # story_point_label = re.match(r'(\d+)\s*point(s)?', label)
+         story_point_label = re.match(r'(\d+)\s*pts', label)
          if story_point_label:
             return int(story_point_label[1])
 
