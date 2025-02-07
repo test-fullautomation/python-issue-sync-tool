@@ -76,6 +76,7 @@ Client for interacting with RTC (Rational Team Concert).
       "description": "oslc_cm:ChangeRequest//dcterms:description",
       "story_point": "oslc_cm:ChangeRequest//rtc_ext:com.ibm.team.apt.attribute.complexity",
       "priority": "oslc_cm:ChangeRequest//oslc_cmx:priority",
+      "assignee": "oslc_cm:ChangeRequest//dcterms:contributor",
       "labels": "oslc_cm:ChangeRequest//dcterms:subject"
    }
    workflow_id = "com.ibm.team.apt.storyWorkflow"
@@ -515,6 +516,28 @@ Get the filed against URL for the specified file against name.
          raise Exception(f"Failed to request to get fileAgainst, url: '{url}'")
       return None
 
+   def get_user_link(self, user_id):
+      """
+Get the user link for the specified user ID.
+
+**Arguments:**
+
+* ``user_id``
+
+  / *Condition*: required / *Type*: str /
+
+  The user id on RTC.
+
+**Returns:**
+
+* / *Type*: str /
+
+  The user URL.
+      """
+      if not user_id:
+         user_id = "unassigned"
+      return f"{self.hostname}/jts/users/{user_id}"
+
    def get_filedAgainst(self, fileAgainst_name, project_id=None):
       """
 Get the filed against URL for the specified file against name.
@@ -668,6 +691,8 @@ Update a work item with the specified attributes.
                oAttr.set("{%s}resource" % nsmap['rdf'], self.get_complexity_link(val))
             elif attr == "priority":
                oAttr.set("{%s}resource" % nsmap['rdf'], self.get_priority_link(val))
+            elif attr == "assignee":
+               oAttr.set("{%s}resource" % nsmap['rdf'], self.get_user_link(val))
             elif attr == "labels" and isinstance(val, list):
                oAttr.clear()
                # replace spaces with underscores due to RTC tag can not contains space
