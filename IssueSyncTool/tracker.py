@@ -125,6 +125,7 @@ Normalized Ticket with required information for syncing between trackers.
                 component: Optional[str] = None,
                 version: Optional[str] = None,
                 story_point: Optional[int] = None,
+                priority: Optional[int] = None,
                 createdDate: Optional[str] = None,
                 updatedDate: Optional[str] = None,
                 labels: Optional[list] = None,
@@ -238,6 +239,7 @@ Initialize a new Ticket.
       self.version = version
       self.labels = labels if labels is not None else []
       self.story_point = story_point
+      self.priority = priority
       self.destination_id = destination_id
       self.issue_client = issue_client
 
@@ -464,10 +466,38 @@ Process to verify whether the given issue satisfies the exclude conditions.
                if getattr(issue, key) == value: return False
       return True
 
+   def get_priority_from_labels(self, labels: list) -> int:
+      """
+Process to get priority from issue labels.
+Example of priority labels: `prio 1`, `prio 2`, ...
+
+**Arguments:**
+
+* ``labels``
+
+  / *Condition*: required / *Type*: list /
+
+  A list of labels associated with the issue.
+
+**Returns:**
+
+* ``priority``
+
+  / *Type*: int /
+
+  The priority extracted from the labels.
+      """
+      for label in labels:
+         priority_label = re.match(r'prio\s*(\d+)', label)
+         if priority_label:
+            return int(priority_label[1])
+
+      return None
+
    def get_story_point_from_labels(self, labels: list) -> int:
       """
 Process to get story points from issue labels.
-Example of story point labels: `1 point`, `2 points`, ...
+Example of story point labels: `1 pts`, `2 pts`, ...
 
 **Arguments:**
 
@@ -486,7 +516,8 @@ Example of story point labels: `1 point`, `2 points`, ...
   The story points extracted from the labels.
       """
       for label in labels:
-         story_point_label = re.match(r'(\d+)\s*point(s)?', label)
+         # story_point_label = re.match(r'(\d+)\s*point(s)?', label)
+         story_point_label = re.match(r'(\d+)\s*pts', label)
          if story_point_label:
             return int(story_point_label[1])
 
@@ -559,6 +590,7 @@ Normalize a list of issues to Ticket objects.
                      f"{self.hostname}/browse/{issue.key}",
                      Status.normalize_issue_status(self.TYPE, issue.raw['fields']['status']['name']),
                      self.__get_component(issue),
+                     priority=self.get_priority(issue),
                      story_point=self.get_story_point(issue),
                      labels=issue.raw['fields']['labels'],
                      issue_client=issue
@@ -723,6 +755,30 @@ Update an existing ticket in the Jira tracker.
       edit_issue = self.tracker_client.issue(id)
       edit_issue.update(**kwargs)
 
+   def get_priority(self, issue) -> int:
+      """
+Get the priority of an issue.
+
+**Arguments:**
+
+* ``issue``
+
+  / *Condition*: required / *Type*: Issue /
+
+  The issue object.
+
+**Returns:**
+
+* ``priority``
+
+  / *Type*: int /
+
+  The priority of the issue.
+      """
+      if issue.fields.priority:
+         return int(issue.fields.priority.id)
+      return None
+
    def get_story_point(self, issue) -> int:
       """
 Get the story points of an issue.
@@ -827,6 +883,7 @@ Normalize an issue to a Ticket object.
                     Status.normalize_issue_status(self.TYPE, issue.state),
                     repo,
                     labels=[label.name for label in issue.labels],
+                    priority=self.get_priority_from_labels([label.name for label in issue.labels]),
                     story_point=self.get_story_point_from_labels([label.name for label in issue.labels]),
                     issue_client=issue)
 
@@ -1109,6 +1166,7 @@ Normalize an issue to a Ticket object.
          self.__get_issue_status(issue),
          project,
          labels=self.__get_issue_labels(issue),
+         priority=self.get_priority_from_labels(issue.labels),
          story_point=self.get_story_point(issue),
          issue_client=issue
       )
@@ -1590,6 +1648,7 @@ Normalize a list of issues to Ticket objects.
                      issue['rdf:about'],
                      Status.normalize_issue_status(self.TYPE, issue['oslc_cm:status']),
                      story_point=issue['rtc_ext:com.ibm.team.workitem.attribute.storyPointsNumeric'],
+                     priority=self.get_priority(issue),
                      version=self.get_plannedFor(issue),
                      issue_client=self.tracker_client
                      ) for issue in issues]
@@ -1687,6 +1746,40 @@ Get tickets from the RTC tracker.
   A list of tickets that satisfy the given conditions.
       """
       pass
+
+   def get_priority(self, issue):
+      """
+Get the priority attribute of an issue.
+
+**Arguments:**
+
+* ``issue``
+
+  / *Condition*: required / *Type*: Ticket /
+
+  The issue object.
+
+**Returns:**
+
+* ``priority``
+
+  / *Type*: str /
+
+  The priority attribute of the issue.
+      """
+      if 'oslc_cmx:priority' in issue and 'rdf:resource' in issue['oslc_cmx:priority']:
+         try:
+            priority = self.tracker_client.get_info_from_url(issue['oslc_cmx:priority']['rdf:resource'], 'dcterms:title')
+            # Try to get priority as integer value
+            matched_priority = re.match(r"^(\d)(\s*-\s8\w+)?", priority)
+            if matched_priority:
+               priority = matched_priority.group(1)
+            else:
+               priority = None # Unassigned value => not set
+            return priority
+         except:
+            return ""
+      return ""
 
    def get_plannedFor(self, issue: Ticket) -> str:
       """

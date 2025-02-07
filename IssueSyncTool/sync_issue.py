@@ -5,7 +5,7 @@ import sys
 import os
 import re
 from .version import VERSION, VERSION_DATE
-from .utils import CONFIG_SCHEMA
+from .utils import CONFIG_SCHEMA, REGEX_SPRINT_LABEL
 from argparse import ArgumentParser
 from jsonschema import validate
 from .tracker import Tracker, Status
@@ -372,6 +372,7 @@ title with destination issue's id.
                                       description=issue_desc,
                                       story_point=issue.story_point,
                                       assignee=assignee_id,
+                                      priority=issue.priority,
                                       labels=issue.labels)
 
    issue.update(title=f"[ {res_id} ] {issue.title}")
@@ -379,7 +380,7 @@ title with destination issue's id.
    Logger.log(f"Created new {des_tracker.TYPE.title()} issue with ID {res_id}", indent=4)
    return res_id
 
-def process_sync_issues(org_issue, org_tracker, dest_issue, des_tracker, component_mapping=None, sync_only_status=False):
+def process_sync_issues(org_issue, org_tracker, dest_issue, des_tracker, assignee, component_mapping=None, sync_only_status=False):
    """
 Update source (original) issue due to information from appropriate destination one.
 
@@ -432,12 +433,18 @@ Defined sync attributes:
    dest_issue = des_tracker.get_ticket(org_issue.destination_id)
    # Update original issue
    Logger.log(f"Updating {org_issue.tracker.title()} issue {org_issue.id}:", indent=4)
+
+   # remove existing sprint label include 'backlog'
+   labels=org_issue.labels
+   sprint_label = re.compile(REGEX_SPRINT_LABEL)
+   labels = [i for i in labels if not sprint_label.match(i) and i != 'backlog']
    if dest_issue.version:
       Logger.log(f"Adding sprint label '{dest_issue.version}'", indent=6)
       org_tracker.create_label(dest_issue.version, repository=org_issue.component)
-      org_issue.update(labels=org_issue.labels+[dest_issue.version])
+      org_issue.update(labels=labels+[dest_issue.version])
    else:
-      Logger.log_warning(f"No version information from issue to be synced back", indent=6)
+      Logger.log_warning(f"Add 'backlog' label for unplanned issue", indent=6)
+      org_issue.update(labels=labels+['backlog'])
 
    # Update destination issue
    Logger.log(f"Updating {dest_issue.tracker.title()} issue {dest_issue.id}:", indent=4)
@@ -445,18 +452,25 @@ Defined sync attributes:
       Logger.log(f"Syncing 'Status'... (change from '{dest_issue.status}' to '{org_issue.status}')", indent=6)
       des_tracker.update_ticket_state(dest_issue, org_issue.status)
 
+   # Auto assign when missing assignee from original ticket
+   assignee_id = ""
+   if assignee:
+      assignee_id = assignee.id[des_tracker.TYPE]
+
    if not sync_only_status:
       des_title = process_title(org_issue.title, org_issue.component, component_mapping)
 
       if dest_issue.title != des_title:
-         Logger.log(f"Syncing 'Title', 'Description', 'Labels' and 'Story Point'", indent=6)
+         Logger.log(f"Syncing 'Title', 'Description', 'Labels', 'Priority', 'Assignee' and 'Story Point'", indent=6)
          des_tracker.update_ticket(dest_issue.id, title=des_title ,story_point=org_issue.story_point,
-                                   labels=org_issue.labels,
+                                   labels=org_issue.labels, priority=org_issue.priority,
+                                   assignee=assignee_id,
                                    description=f"Original issue url: {org_issue.url}\n\n{org_issue.description}")
       else:
-         Logger.log(f"Syncing 'Description', 'Labels' and 'Story Point'", indent=6)
+         Logger.log(f"Syncing 'Description', 'Labels', 'Priority', 'Assignee' and 'Story Point'", indent=6)
          des_tracker.update_ticket(dest_issue.id, story_point=org_issue.story_point,
-                                   labels=org_issue.labels,
+                                   labels=org_issue.labels, priority=org_issue.priority,
+                                   assignee=assignee_id,
                                    description=f"Original issue url: {org_issue.url}\n\n{org_issue.description}")
 
 def SyncIssue():
@@ -533,7 +547,7 @@ Main function to sync issues between tracking systems.
             else:
                sync_status = "synced"
                if not args.dryrun:
-                  process_sync_issues(issue, tracker, dest_issue, des_tracker, component_mapping, args.status_only)
+                  process_sync_issues(issue, tracker, dest_issue, des_tracker, assignee, component_mapping, args.status_only)
             csv_content.append(f"{issue_counter}, {issue.tracker.title()} {issue.id}, {issue.url}, {config['destination'][0]} {issue.destination_id}, {sync_status}\n")
             sync_issue += 1
 
