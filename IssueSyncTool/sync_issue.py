@@ -5,7 +5,7 @@ import sys
 import os
 import re
 from .version import VERSION, VERSION_DATE
-from .utils import CONFIG_SCHEMA
+from .utils import CONFIG_SCHEMA, REGEX_SPRINT_LABEL
 from argparse import ArgumentParser
 from jsonschema import validate
 from .tracker import Tracker, Status
@@ -433,12 +433,18 @@ Defined sync attributes:
    dest_issue = des_tracker.get_ticket(org_issue.destination_id)
    # Update original issue
    Logger.log(f"Updating {org_issue.tracker.title()} issue {org_issue.id}:", indent=4)
+
+   # remove existing sprint label include 'backlog'
+   labels=org_issue.labels
+   sprint_label = re.compile(REGEX_SPRINT_LABEL)
+   labels = [i for i in labels if not sprint_label.match(i) and i != 'backlog']
    if dest_issue.version:
       Logger.log(f"Adding sprint label '{dest_issue.version}'", indent=6)
       org_tracker.create_label(dest_issue.version, repository=org_issue.component)
-      org_issue.update(labels=org_issue.labels+[dest_issue.version])
+      org_issue.update(labels=labels+[dest_issue.version])
    else:
-      Logger.log_warning(f"No version information from issue to be synced back", indent=6)
+      Logger.log_warning(f"Add 'backlog' label for unplanned issue", indent=6)
+      org_issue.update(labels=labels+['backlog'])
 
    # Update destination issue
    Logger.log(f"Updating {dest_issue.tracker.title()} issue {dest_issue.id}:", indent=4)

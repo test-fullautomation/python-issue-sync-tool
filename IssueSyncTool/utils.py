@@ -235,3 +235,5 @@ CONFIG_SCHEMA = {
       }
    }
 }
+
+REGEX_SPRINT_LABEL = r"PI.*"
