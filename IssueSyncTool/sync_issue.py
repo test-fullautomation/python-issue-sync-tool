@@ -372,6 +372,7 @@ title with destination issue's id.
                                       description=issue_desc,
                                       story_point=issue.story_point,
                                       assignee=assignee_id,
+                                      priority=issue.priority,
                                       labels=issue.labels)
 
    issue.update(title=f"[ {res_id} ] {issue.title}")
@@ -449,14 +450,14 @@ Defined sync attributes:
       des_title = process_title(org_issue.title, org_issue.component, component_mapping)
 
       if dest_issue.title != des_title:
-         Logger.log(f"Syncing 'Title', 'Description', 'Labels' and 'Story Point'", indent=6)
+         Logger.log(f"Syncing 'Title', 'Description', 'Labels', 'Priority' and 'Story Point'", indent=6)
          des_tracker.update_ticket(dest_issue.id, title=des_title ,story_point=org_issue.story_point,
-                                   labels=org_issue.labels,
+                                   labels=org_issue.labels, priority=org_issue.priority,
                                    description=f"Original issue url: {org_issue.url}\n\n{org_issue.description}")
       else:
-         Logger.log(f"Syncing 'Description', 'Labels' and 'Story Point'", indent=6)
+         Logger.log(f"Syncing 'Description', 'Labels', 'Priority' and 'Story Point'", indent=6)
          des_tracker.update_ticket(dest_issue.id, story_point=org_issue.story_point,
-                                   labels=org_issue.labels,
+                                   labels=org_issue.labels, priority=org_issue.priority,
                                    description=f"Original issue url: {org_issue.url}\n\n{org_issue.description}")
 
 def SyncIssue():

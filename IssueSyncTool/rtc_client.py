@@ -4,6 +4,7 @@ import urllib3
 from io import BytesIO
 from lxml import etree
 import os
+import re
 from xml.sax.saxutils import escape
 from collections import defaultdict, deque
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -74,6 +75,7 @@ Client for interacting with RTC (Rational Team Concert).
       "title": "oslc_cm:ChangeRequest//dcterms:title",
       "description": "oslc_cm:ChangeRequest//dcterms:description",
       "story_point": "oslc_cm:ChangeRequest//rtc_ext:com.ibm.team.apt.attribute.complexity",
+      "priority": "oslc_cm:ChangeRequest//oslc_cmx:priority",
       "labels": "oslc_cm:ChangeRequest//dcterms:subject"
    }
    workflow_id = "com.ibm.team.apt.storyWorkflow"
@@ -142,6 +144,7 @@ Initialize the RTCClient instance.
 
       self.login()
       self.defined_complexity = self.__get_complexity_cache()
+      self.defined_priority = self.__get_priority()
       if workflow_id:
          self.workflow_id = workflow_id
       if state_transition:
@@ -276,6 +279,93 @@ Get the project ID for the specified project name.
                break
       if not project_found:
          raise Exception(f"Could not find project with name '{self.project['name']}'")
+
+   def __get_priority(self, project_id=None):
+      """
+Get the priority values for the specified project.
+
+**Arguments:**
+
+* ``project_id``
+
+   / *Condition*: optional / *Type*: str / *Default*: None /
+
+   The project ID.
+
+**Returns:**
+
+* ``priority_dict``
+
+   / *Type*: dict /
+
+   A dictionary of priority values.
+      """
+      if not project_id:
+         if not self.project['id']:
+            self.__get_projectID()
+         project_id = self.project['id']
+
+      url = f"{self.hostname}/ccm/oslc/enumerations/{project_id}/priority"
+
+      res = self.session.get(url, allow_redirects=True, verify=False)
+
+      if res.status_code != 200:
+         raise Exception(f"Failed to request to get priority, url: '{url}'")
+
+      priority_dict = dict()
+      list_priority = res.json()['oslc:results']
+      for item in list_priority:
+         priority = item['dcterms:title']
+         # Get integer value of priority from its title
+         # Unassigned
+         # 5 - Very Low
+         # 4 - Low
+         # 3 - Medium
+         # 2 - High
+         # 1 - Very High
+         matched_priority = re.match(r"^(\d)(\s*-\s8\w+)?", priority)
+         if matched_priority:
+            priority = matched_priority.group(1)
+
+         priority_dict[priority] = item['rdf:about']
+
+      return priority_dict
+
+   def get_priority_link(self, priority, project_id=None):
+      """
+Get the priority link.
+
+**Arguments:**
+
+* ``priority``
+
+  / *Condition*: required / *Type*: int /
+
+  The priority value.
+
+* ``project_id``
+
+  / *Condition*: optional / *Type*: str / *Default*: None /
+
+  The project ID.
+
+**Returns:**
+
+* ``priority_identifier``
+
+  / *Type*: str /
+
+  The priority link for the specified value.
+      """
+      if not priority:
+         if 'Unassigned' in  self.defined_priority:
+            return self.defined_priority['Unassigned']
+         else:
+            return ""
+
+      if str(priority) not in self.defined_priority.keys():
+         raise Exception(f"Given priority value '{priority}' is not valid, it should be in {[item for item in self.defined_priority.keys()]}")
+      return self.defined_priority[str(priority)]
 
    def __get_complexity_cache(self, project_id=None):
       """
@@ -576,6 +666,8 @@ Update a work item with the specified attributes.
             oAttr = oWorkItem.find(self.xml_attr_mapping[attr], nsmap)
             if attr == "story_point":
                oAttr.set("{%s}resource" % nsmap['rdf'], self.get_complexity_link(val))
+            elif attr == "priority":
+               oAttr.set("{%s}resource" % nsmap['rdf'], self.get_priority_link(val))
             elif attr == "labels" and isinstance(val, list):
                oAttr.clear()
                # replace spaces with underscores due to RTC tag can not contains space
@@ -667,7 +759,8 @@ Update the state of a work item by performing the specified action.
       if action_res.status_code != 200:
          raise Exception(f"Failed in requesting to change state of workitem {ticket_id}")
 
-   def create_workitem(self, title, description, story_point=0, file_against=None, assignee=None, project_id=None, **kwargs):
+   def create_workitem(self, title, description, story_point=0, file_against=None,
+                       assignee=None, priority=None, project_id=None, **kwargs):
       """
 Create a new work item.
 
@@ -703,6 +796,12 @@ Create a new work item.
 
   The assignee of the work item.
 
+* ``priority``
+
+  / *Condition*: optional / *Type*: int / *Default*: None /
+
+  The priority of the work item.
+
 * ``project_id``
 
   / *Condition*: optional / *Type*: str / *Default*: None /
@@ -731,6 +830,15 @@ Create a new work item.
       contributors = ""
       if assignee:
          contributors = f"<dcterms:contributor rdf:resource=\"{hostname}/jts/users/{assignee}\" />"
+
+      if priority:
+         priority = self.get_priority_link(priority)
+      else:
+         # Try to get link to Unassigned priority if not specified
+         try:
+            priority = self.get_priority_link("Unassigned")
+         except:
+            priority = ""
 
       if file_against:
          filed_against = self.get_filedAgainst(file_against)
