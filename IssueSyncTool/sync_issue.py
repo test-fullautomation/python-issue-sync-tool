@@ -437,14 +437,15 @@ Defined sync attributes:
    # remove existing sprint label include 'backlog'
    labels=org_issue.labels
    sprint_label = re.compile(REGEX_SPRINT_LABEL)
-   labels = [i for i in labels if not sprint_label.match(i) and i != 'backlog']
+   updated_labels = [i for i in labels if not sprint_label.match(i) and i != 'backlog']
    if dest_issue.version:
       Logger.log(f"Adding sprint label '{dest_issue.version}'", indent=6)
       org_tracker.create_label(dest_issue.version, repository=org_issue.component)
-      org_issue.update(labels=labels+[dest_issue.version])
+      updated_labels = updated_labels+[dest_issue.version]
    else:
       Logger.log_warning(f"Add 'backlog' label for unplanned issue", indent=6)
-      org_issue.update(labels=labels+['backlog'])
+      updated_labels = updated_labels+['backlog']
+   org_issue.update(labels=updated_labels)
 
    # Update destination issue
    Logger.log(f"Updating {dest_issue.tracker.title()} issue {dest_issue.id}:", indent=4)
@@ -463,13 +464,13 @@ Defined sync attributes:
       if dest_issue.title != des_title:
          Logger.log(f"Syncing 'Title', 'Description', 'Labels', 'Priority', 'Assignee' and 'Story Point'", indent=6)
          des_tracker.update_ticket(dest_issue.id, title=des_title ,story_point=org_issue.story_point,
-                                   labels=org_issue.labels, priority=org_issue.priority,
+                                   labels=updated_labels, priority=org_issue.priority,
                                    assignee=assignee_id,
                                    description=f"Original issue url: {org_issue.url}\n\n{org_issue.description}")
       else:
          Logger.log(f"Syncing 'Description', 'Labels', 'Priority', 'Assignee' and 'Story Point'", indent=6)
          des_tracker.update_ticket(dest_issue.id, story_point=org_issue.story_point,
-                                   labels=org_issue.labels, priority=org_issue.priority,
+                                   labels=updated_labels, priority=org_issue.priority,
                                    assignee=assignee_id,
                                    description=f"Original issue url: {org_issue.url}\n\n{org_issue.description}")
 
