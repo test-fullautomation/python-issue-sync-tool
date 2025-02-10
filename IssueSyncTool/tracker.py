@@ -347,6 +347,14 @@ Abstraction class of Tracker Service.
    # Default color for sprint labels.
    SPRINT_LABEL_COLOR = "#007bff"  # calm blue
 
+   PRIORITY_LEVEL = {
+      "1": ["Highest", "Very High"],
+      "2": ["High"],
+      "3": ["Medium"],
+      "4": ["Low"],
+      "5": ["Lowest", "Very Low"]
+   }
+
    def __init__(self):
       """
 Initialize the TrackerService instance.
@@ -490,6 +498,9 @@ Example of priority labels: `prio 1`, `prio 2`, ...
       for label in labels:
          priority_label = re.match(r'prio\s*(\d+)', label)
          if priority_label:
+            # Limit priority level to 5 (lowest)
+            if int(priority_label[1]) > 5:
+               return 5
             return int(priority_label[1])
 
       return None
@@ -776,7 +787,15 @@ Get the priority of an issue.
   The priority of the issue.
       """
       if issue.fields.priority:
-         return int(issue.fields.priority.id)
+         if int(issue.fields.priority.id) in range(1,6):
+            return int(issue.fields.priority.id)
+         else:
+            # return priority level as int base on its name
+            for level, names in self.PRIORITY_LEVEL.items():
+               if issue.fields.priority.name in names:
+                  return level
+         return 5 # return level 5 if priority is set but not match any definition level
+
       return None
 
    def get_story_point(self, issue) -> int:
