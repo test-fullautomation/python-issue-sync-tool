@@ -821,11 +821,13 @@ Get the story points of an issue.
       # customfield_10224 from API response contains Estimate story point attribute
       if 'customfield_10224' in issue.raw['fields'] and issue.raw['fields']['customfield_10224']:
          return int(issue.raw['fields']['customfield_10224'])
+      else:
+         return self.get_story_point_from_labels(issue.raw['fields']['labels'])
 
       # convert estimation time to story point
       # if 'timetracking' in issue.raw['fields'] and issue.raw['fields']['timetracking'] and 'remainingEstimateSeconds' in issue.raw['fields']['timetracking']:
       #    return self.time_estimate_to_story_point(issue.raw['fields']['timetracking']['remainingEstimateSeconds'])
-      return 0
+      # return 0
 
    def create_label(self, label_name: str, color: str = None, repository: str = None):
       """
