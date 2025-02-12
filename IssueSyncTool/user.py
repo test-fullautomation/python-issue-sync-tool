@@ -24,7 +24,7 @@ Initialize a new User.
       """
       self.name = name
       self.id = id
-   
+
    def __repr__(self) -> str:
       """
 Return a string representation of the User object.
@@ -89,9 +89,9 @@ Get a user by their ID and tracker.
   The user object if found, otherwise None.
       """
       for user in self.users:
-         if isinstance(user.id, dict) and (tracker in user.id) and (user.id[tracker] == id.lower()):
+         if isinstance(user.id, dict) and (tracker in user.id) and (user.id[tracker].lower() == id.lower()):
             return user
-         
+
       return None
 
 if __name__ == "__main__":
