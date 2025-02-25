@@ -5,7 +5,7 @@ import sys
 import os
 import re
 from .version import VERSION, VERSION_DATE
-from .utils import CONFIG_SCHEMA, REGEX_SPRINT_LABEL
+from .utils import CONFIG_SCHEMA, REGEX_SPRINT_LABEL, REGEX_VERSION_LABEL
 from argparse import ArgumentParser
 from jsonschema import validate
 from .tracker import Tracker, Status
@@ -162,6 +162,19 @@ Write error message to console/file output.
       if fatal_error:
          cls.log(f"{sys.argv[0]} has been stopped!", cls.color_error)
          raise SystemExit(1)
+
+def get_additional_labels_of_sprint(sprint, component, sprint_label_mapping=None, component_mapping=None):
+   version_label = ""
+
+   if sprint_label_mapping and sprint in sprint_label_mapping.keys():
+      # Check which project (DevAtServ or AIO) to get proper version label
+      # Use AIO version label as default
+      if component_mapping and (component in component_mapping) and (component_mapping[component] in sprint_label_mapping[sprint].keys()):
+         version_label = sprint_label_mapping[sprint][component_mapping[component]]
+      elif "AIO" in sprint_label_mapping[sprint].keys():
+         version_label = sprint_label_mapping[sprint]["AIO"]
+
+   return version_label
 
 def write_csv_files(filename, list_line):
    """
@@ -380,7 +393,9 @@ title with destination issue's id.
    Logger.log(f"Created new {des_tracker.TYPE.title()} issue with ID {res_id}", indent=4)
    return res_id
 
-def process_sync_issues(org_issue, org_tracker, dest_issue, des_tracker, assignee, component_mapping=None, sync_only_status=False):
+def process_sync_issues(org_issue, org_tracker, dest_issue, des_tracker, assignee,
+                        component_mapping=None, sprint_version_mapping=None,
+                        sync_only_status=False):
    """
 Update source (original) issue due to information from appropriate destination one.
 
@@ -426,6 +441,12 @@ Defined sync attributes:
 
    Component mappings for naming ticket title on destination tracker.
 
+*  ``sprint_version_mapping``
+
+   / *Condition*: optional / *Type*: dict /
+
+   Mappings between sprint planning and product (AIO and DevAtServ) versions.
+
 **Returns:**
 
 (*no returns*)
@@ -436,14 +457,24 @@ Defined sync attributes:
 
    # remove existing sprint label include 'backlog'
    labels=org_issue.labels
-   sprint_label = re.compile(REGEX_SPRINT_LABEL)
-   updated_labels = [i for i in labels if not sprint_label.match(i) and i != 'backlog']
+   sprint_label_regex = re.compile(REGEX_SPRINT_LABEL)
+   updated_labels = [i for i in labels if not sprint_label_regex.match(i) and i != 'backlog']
    if dest_issue.version:
       Logger.log(f"Adding sprint label '{dest_issue.version}'", indent=6)
       org_tracker.create_label(dest_issue.version, repository=org_issue.component)
       updated_labels = updated_labels+[dest_issue.version]
+
+      # Get version label which maps to ticket planning sprint
+      version_label = get_additional_labels_of_sprint(dest_issue.version, org_issue.component, sprint_version_mapping, component_mapping)
+      if version_label:
+         version_label_regex = re.compile(REGEX_VERSION_LABEL)
+         # Remove existing version label in original ticket
+         updated_labels = [i for i in labels if not version_label_regex.match(i)]
+         Logger.log(f"Adding version label '{version_label}'", indent=6)
+         org_tracker.create_label(version_label, repository=org_issue.component)
+         updated_labels = updated_labels+[version_label]
    else:
-      Logger.log_warning(f"Add 'backlog' label for unplanned issue", indent=6)
+      Logger.log_warning(f"Adding 'backlog' label for unplanned issue", indent=6)
       updated_labels = updated_labels+['backlog']
    org_issue.update(labels=updated_labels)
 
@@ -497,6 +528,11 @@ Main function to sync issues between tracking systems.
    component_mapping = None
    if 'component_mapping' in config:
       component_mapping = config['component_mapping']
+
+   # Process additional labels (version label) for planing print - only for sync issue
+   sprint_version_mapping = None
+   if 'sprint_version_mapping' in config:
+      sprint_version_mapping = config['sprint_version_mapping']
 
    # Process destination tracker
    des_tracker = Tracker.create(config['destination'][0])
@@ -557,7 +593,7 @@ Main function to sync issues between tracking systems.
                sync_status = "synced"
                if not args.dryrun:
                   try:
-                     process_sync_issues(issue, tracker, dest_issue, des_tracker, assignee, component_mapping, args.status_only)
+                     process_sync_issues(issue, tracker, dest_issue, des_tracker, assignee, component_mapping, sprint_version_mapping, args.status_only)
                      sync_issue += 1
                   except Exception as reason:
                      Logger.log_error(f"Cannot sync {dest_issue.tracker.title()} issue {dest_issue.id}. {reason}", indent=4)
