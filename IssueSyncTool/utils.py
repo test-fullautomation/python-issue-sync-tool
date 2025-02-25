@@ -105,6 +105,9 @@ CONFIG_SCHEMA = {
       },
       "component_mapping": {
          "type": "object"
+      },
+      "sprint_version_mapping": {
+         "type": "object"
       }
    },
    "required": ["source", "destination", "tracker"],
@@ -237,3 +240,5 @@ CONFIG_SCHEMA = {
 }
 
 REGEX_SPRINT_LABEL = r"PI.*"
+
+REGEX_VERSION_LABEL = r"^\d+\.\d+\.\d+$"

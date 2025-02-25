@@ -651,7 +651,7 @@ Get a work item by its ID.
       if response.status_code == 200:
          return response.json()
       else:
-         raise Exception(f"Failed to retrieve issues: {response.status_code}")
+         raise Exception(f"Failed to retrieve issues: {ticket_id}. Reason: {response.reason}")
 
    def update_workitem(self, ticket_id, **kwargs):
       """
@@ -704,9 +704,9 @@ Update a work item with the specified attributes.
 
          update_res = self.session.put(url, allow_redirects=True, verify=False, data=etree.tostring(oWorkItem))
          if update_res.status_code not in [200, 204]:
-            raise Exception(f"Failed to update work item: {update_res.status_code}. Reason: {update_res.reason}")
+            raise Exception(f"Failed to update work item: {ticket_id}. Reason: {update_res.reason}")
       else:
-         raise Exception(f"Failed to get work item: {update_res.status_code} for update")
+         raise Exception(f"Failed to get work item: {ticket_id} for update. Reason: {res.reason}")
 
    def update_workitem_state(self, ticket_id, current_state, new_state):
       """
@@ -912,4 +912,4 @@ Create a new work item.
       if response.status_code == 201:
          return response.json()['dcterms:identifier']
       else:
-         raise Exception(f"Failed to create RTC work item: {response.status_code}, {response.text}")
+         raise Exception(f"Failed to create new RTC work item. Reason: {response.text}")
