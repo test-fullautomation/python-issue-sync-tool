@@ -509,6 +509,7 @@ Main function to sync issues between tracking systems.
 
    # Process source trackers
    issue_counter = 0
+   error_counter = 0
    for source in config['source']:
       new_issue = 0
       sync_issue = 0
@@ -538,19 +539,31 @@ Main function to sync issues between tracking systems.
             except Exception:
                csv_content.append(f"{issue_counter}, {issue.tracker.title()} {issue.id}, {issue.url}, {config['destination'][0]} {issue.destination_id}, not found\n")
                Logger.log_warning(f"{config['destination'][0].title()} issue {issue.destination_id} cannot be found.", indent=4)
+               error_counter += 1
                continue
 
             if args.nosync and 'nosync' in issue.labels:
                sync_status = "closed nosync"
                if not args.dryrun:
-                  Logger.log(f"Closing {dest_issue.tracker.title()} issue {dest_issue.id} due to 'nosync'", indent=4)
-                  des_tracker.update_ticket_state(dest_issue, Status.closed)
+                  try:
+                     Logger.log(f"Closing {dest_issue.tracker.title()} issue {dest_issue.id} due to 'nosync'", indent=4)
+                     des_tracker.update_ticket_state(dest_issue, Status.closed)
+                     sync_issue += 1
+                  except Exception as reason:
+                     Logger.log_error(f"Cannot close {dest_issue.tracker.title()} issue {dest_issue.id}. {reason}", indent=4)
+                     error_counter += 1
+                     sync_status = "error"
             else:
                sync_status = "synced"
                if not args.dryrun:
-                  process_sync_issues(issue, tracker, dest_issue, des_tracker, assignee, component_mapping, args.status_only)
+                  try:
+                     process_sync_issues(issue, tracker, dest_issue, des_tracker, assignee, component_mapping, args.status_only)
+                     sync_issue += 1
+                  except Exception as reason:
+                     Logger.log_error(f"Cannot sync {dest_issue.tracker.title()} issue {dest_issue.id}. {reason}", indent=4)
+                     error_counter += 1
+                     sync_status = "error"
             csv_content.append(f"{issue_counter}, {issue.tracker.title()} {issue.id}, {issue.url}, {config['destination'][0]} {issue.destination_id}, {sync_status}\n")
-            sync_issue += 1
 
          else:
             res_id = ""
@@ -561,17 +574,25 @@ Main function to sync issues between tracking systems.
             else:
                # create new issue on destination tracker
                if not args.dryrun:
-                  res_id = process_new_issue(issue, des_tracker, assignee, component_mapping)
-               new_issue += 1
+                  try:
+                     res_id = process_new_issue(issue, des_tracker, assignee, component_mapping)
+                     new_issue += 1
+                  except Exception as reason:
+                     Logger.log_error(f"Cannot create new {config['destination'][0].title()} issue. {reason}", indent=4)
+                     error_counter += 1
+                     sync_status = "error"
 
             csv_content.append(f"{issue_counter}, {issue.tracker.title()} {issue.id}, {issue.url}, {config['destination'][0]} {res_id}, {sync_status}\n")
 
-
       Logger.log(f"{new_issue + sync_issue} {source.title()} issues has been synced (includes {new_issue} new creation) to {config['destination'][0]} successfully!\n", indent=2)
 
-   Logger.log(f"Total {issue_counter} issues has been synced to {config['destination'][0]} successfully!")
    if args.csv:
       write_csv_files(csv_file, csv_content)
+
+   if error_counter:
+      Logger.log(f"{issue_counter - error_counter} issues has been synced to {config['destination'][0]} successfully! {error_counter} issues are not synced due to error.")
+   else:
+      Logger.log(f"All {issue_counter} issues has been synced to {config['destination'][0]} successfully!")
 
 if __name__ == "__main__":
    SyncIssue()
