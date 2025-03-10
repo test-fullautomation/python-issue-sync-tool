@@ -15,12 +15,13 @@
       {complexity}
       {contributors}
       {children}
+      {parent}
       <oslc_cmx:priority rdf:resource="{priority}"/>
       <dcterms:description rdf:parseType="Literal">{description}</dcterms:description>
       <oslc_cm:status rdf:datatype="http://www.w3.org/2001/XMLSchema#string">{state}</oslc_cm:status>
       <rtc_ext:contextId rdf:datatype="http://www.w3.org/2001/XMLSchema#string">{project_id}</rtc_ext:contextId>
       <rtc_cm:subscribers rdf:resource="{hostname}/jts/users/{user_id}" />
-      <rtc_cm:type rdf:resource="{hostname}/ccm/oslc/types/{project_id}/com.ibm.team.apt.workItemType.{type}" />
+      <rtc_cm:type rdf:resource="{workitem_type_url}" />
       <rtc_cm:repository rdf:resource="{hostname}/ccm/oslc/repository" />
       <rtc_cm:filedAgainst rdf:resource="{filed_against}" />
       <acp:accessControl rdf:resource="{hostname}/ccm/oslc/access-control/{project_id}" />
