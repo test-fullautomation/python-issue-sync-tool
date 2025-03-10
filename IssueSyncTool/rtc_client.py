@@ -77,7 +77,8 @@ Client for interacting with RTC (Rational Team Concert).
       "story_point": "oslc_cm:ChangeRequest//rtc_ext:com.ibm.team.apt.attribute.complexity",
       "priority": "oslc_cm:ChangeRequest//oslc_cmx:priority",
       "assignee": "oslc_cm:ChangeRequest//dcterms:contributor",
-      "labels": "oslc_cm:ChangeRequest//dcterms:subject"
+      "labels": "oslc_cm:ChangeRequest//dcterms:subject",
+      "children": "rtc_cm:com.ibm.team.workitem.linktype.parentworkitem.children"
    }
    workflow_id = "com.ibm.team.apt.storyWorkflow"
    state_transition = {
@@ -88,6 +89,7 @@ Client for interacting with RTC (Rational Team Concert).
       "Reject": ["In Test", "In Development"],
       "Defer": ["In Development", "New"]
    }
+   supported_issue_type = ["story", "epic", "programEpic"]
 
    def __init__(self, hostname, project, username, token, file_against=None,
                 workflow_id=None, state_transition=None):
@@ -785,7 +787,8 @@ Update the state of a work item by performing the specified action.
          raise Exception(f"Failed in requesting to change state of workitem {ticket_id}")
 
    def create_workitem(self, title, description, story_point=0, file_against=None,
-                       assignee=None, priority=None, project_id=None, **kwargs):
+                       assignee=None, priority=None, project_id=None,
+                       type="story", state = "New", **kwargs):
       """
 Create a new work item.
 
@@ -852,10 +855,19 @@ Create a new work item.
       user_id = self.user
       hostname = self.hostname
 
+      title = escape_xml_content(title)
+      description = escape_xml_content(description)
+
+      # Verify RTC workitem type
+      if type not in self.supported_issue_type:
+         raise Exception(f"Not support RTC workitem type {type}")
+
+      # Get contributor information
       contributors = ""
       if assignee:
          contributors = f"<dcterms:contributor rdf:resource=\"{hostname}/jts/users/{assignee}\" />"
 
+      # Get priority information
       if priority:
          priority = self.get_priority_link(priority)
       else:
@@ -865,6 +877,7 @@ Create a new work item.
          except:
             priority = ""
 
+      # Get filed against information
       if file_against:
          filed_against = self.get_filedAgainst(file_against)
       elif self.file_against:
@@ -872,21 +885,35 @@ Create a new work item.
       else:
          raise Exception("file_against is required to create RTC workitem")
 
-      state = "New"
-      self.get_complexity_link(story_point)
+      # Get complexity - story point information for story workitem
+      if type == "story":
+         self.get_complexity_link(story_point)
+         complexity = f"<{self.xml_attr_mapping['story_point']} rdf:resource=\"{hostname}/ccm/oslc/enumerations/{project_id}/complexity/{story_point}\"/>"
 
-      workitem_template = None
-      with open(os.path.join(self.templates_dir ,'workitem.xml')) as fh:
-         workitem_template = fh.read()
-
-      title = escape_xml_content(title)
-      description = escape_xml_content(description)
-
+      # Get tags information
       tags = ""
       if 'labels' in kwargs:
          # replace spaces with underscores due to RTC tag can not contains space
          labels = list(map(lambda s: s.replace(" ", "_"), kwargs['labels']))
          tags = ", ".join(labels)
+
+      # Process children/parent for workitem
+      if 'children' in kwargs:
+         workitem_ids = []
+         children = ""
+         if isinstance(kwargs['children'], str):
+            workitem_ids = [kwargs['children']]
+         elif isinstance(kwargs['children'], list):
+            workitem_ids = kwargs['children']
+         else:
+            raise TypeError(f"Not support data type {type(kwargs['children'])} for 'children' param")
+
+         for item_id in workitem_ids:
+            children =+ f"<{self.xml_attr_mapping['children']} rdf:resource=\"{{hostname}}/ccm/resource/itemName/com.ibm.team.workitem.WorkItem/{item_id}\" />"
+
+      workitem_template = None
+      with open(os.path.join(self.templates_dir ,'workitem.xml')) as fh:
+         workitem_template = fh.read()
 
       req_payload = workitem_template.format(**locals())
       # req_payload = workitem_template.format(
