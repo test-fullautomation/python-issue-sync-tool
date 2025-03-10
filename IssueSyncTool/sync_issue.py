@@ -452,31 +452,33 @@ Defined sync attributes:
 (*no returns*)
    """
    dest_issue = des_tracker.get_ticket(org_issue.destination_id)
-   # Update original issue
-   Logger.log(f"Updating {org_issue.tracker.title()} issue {org_issue.id}:", indent=4)
+   # Update original issue if status is not closed
+   # Jira does not allow to add label for closed ticket
+   if org_issue.status != Status.closed:
+      Logger.log(f"Updating {org_issue.tracker.title()} issue {org_issue.id}:", indent=4)
 
-   # remove existing sprint label include 'backlog'
-   labels=org_issue.labels
-   sprint_label_regex = re.compile(REGEX_SPRINT_LABEL)
-   updated_labels = [i for i in labels if not sprint_label_regex.match(i) and i != 'backlog']
-   if dest_issue.version:
-      Logger.log(f"Adding sprint label '{dest_issue.version}'", indent=6)
-      org_tracker.create_label(dest_issue.version, repository=org_issue.component)
-      updated_labels = updated_labels+[dest_issue.version]
+      # remove existing sprint label include 'backlog'
+      labels=org_issue.labels
+      sprint_label_regex = re.compile(REGEX_SPRINT_LABEL)
+      updated_labels = [i for i in labels if not sprint_label_regex.match(i) and i != 'backlog']
+      if dest_issue.version:
+         Logger.log(f"Adding sprint label '{dest_issue.version}'", indent=6)
+         org_tracker.create_label(dest_issue.version, repository=org_issue.component)
+         updated_labels = updated_labels+[dest_issue.version]
 
-      # Get version label which maps to ticket planning sprint
-      version_label = get_additional_labels_of_sprint(dest_issue.version, org_issue.component, sprint_version_mapping, component_mapping)
-      if version_label:
-         version_label_regex = re.compile(REGEX_VERSION_LABEL)
-         # Remove existing version label in original ticket
-         updated_labels = [i for i in labels if not version_label_regex.match(i)]
-         Logger.log(f"Adding version label '{version_label}'", indent=6)
-         org_tracker.create_label(version_label, repository=org_issue.component)
-         updated_labels = updated_labels+[version_label]
-   else:
-      Logger.log_warning(f"Adding 'backlog' label for unplanned issue", indent=6)
-      updated_labels = updated_labels+['backlog']
-   org_issue.update(labels=updated_labels)
+         # Get version label which maps to ticket planning sprint
+         version_label = get_additional_labels_of_sprint(dest_issue.version, org_issue.component, sprint_version_mapping, component_mapping)
+         if version_label:
+            version_label_regex = re.compile(REGEX_VERSION_LABEL)
+            # Remove existing version label in original ticket
+            updated_labels = [i for i in labels if not version_label_regex.match(i)]
+            Logger.log(f"Adding version label '{version_label}'", indent=6)
+            org_tracker.create_label(version_label, repository=org_issue.component)
+            updated_labels = updated_labels+[version_label]
+      else:
+         Logger.log_warning(f"Adding 'backlog' label for unplanned issue", indent=6)
+         updated_labels = updated_labels+['backlog']
+      org_issue.update(labels=updated_labels)
 
    # Update destination issue
    Logger.log(f"Updating {dest_issue.tracker.title()} issue {dest_issue.id}:", indent=4)
