@@ -955,7 +955,7 @@ Create a new work item.
             raise TypeError(f"Not support data type {type(kwargs['children'])} for 'children' param")
 
          for item_id in workitem_ids:
-            children =+ f"<{self.xml_attr_mapping['children']} rdf:resource=\"{hostname}/ccm/resource/itemName/com.ibm.team.workitem.WorkItem/{item_id}\" />"
+            children = children + f"<{self.xml_attr_mapping['children']} rdf:resource=\"{hostname}/ccm/resource/itemName/com.ibm.team.workitem.WorkItem/{item_id}\" />"
 
       if 'parent' in kwargs:
          parent = f"<{self.xml_attr_mapping['parent']} rdf:resource=\"{hostname}/ccm/resource/itemName/com.ibm.team.workitem.WorkItem/{kwargs['parent']}\" />"

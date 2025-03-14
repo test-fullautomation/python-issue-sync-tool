@@ -1,9 +1,8 @@
 from .rtc_client import RTCClient
 from github import Github, Auth
-from jira import JIRA, Issue
+from jira import JIRA
 from gitlab import Gitlab
 from abc import ABC, abstractmethod
-from datetime import datetime
 from typing import Union, Optional, Callable
 import re
 
@@ -114,6 +113,8 @@ class Ticket:
 Normalized Ticket with required information for syncing between trackers.
    """
 
+   SUPPORT_TYPES = ["Epic", "Story"]
+
    def __init__(self,
                 tracker: str,
                 original_id: Optional[str] = None,
@@ -130,7 +131,10 @@ Normalized Ticket with required information for syncing between trackers.
                 updatedDate: Optional[str] = None,
                 labels: Optional[list] = None,
                 destination_id: Optional[str] = None,
-                issue_client: Callable = None):
+                issue_client: Callable = None,
+                type: Optional[str] = 'story',
+                children: Union[str, list] = None,
+                parent: Optional[str] = None):
       """
 Initialize a new Ticket.
 
@@ -242,6 +246,9 @@ Initialize a new Ticket.
       self.priority = priority
       self.destination_id = destination_id
       self.issue_client = issue_client
+      self.type = type
+      self.children = children
+      self.parent = parent
 
    def __repr__(self):
       """
@@ -336,6 +343,9 @@ E.g `[ 1234 ] Title of already synced ticket`
          self.destination_id = match.group(1)
          return True
       return False
+
+   def get_sub_issues(self):
+      pass
 
 class TrackerService(ABC):
    """
@@ -437,23 +447,23 @@ Method to create a new ticket on the tracker system.
       """
       pass
 
-   def exclude_issue_by_condition(self, issue: Issue, exclude_condition=None) -> bool:
+   def exclude_ticket_by_condition(self, ticket: Ticket, exclude_condition=None) -> bool:
       """
-Process to verify whether the given issue satisfies the exclude conditions.
+Process to verify whether the given ticket satisfies the exclude conditions.
 
 **Arguments:**
 
-* ``issue``
+* ``ticket``
 
-  / *Condition*: required / *Type*: Issue /
+  / *Condition*: required / *Type*: Ticket /
 
-  The issue object to be checked.
+  The ticket object to be checked.
 
 * ``exclude_condition``
 
   / *Condition*: optional / *Type*: dict / *Default*: None /
 
-  A dictionary of conditions to exclude the issue.
+  A dictionary of conditions to exclude the ticket.
 
 **Returns:**
 
@@ -461,17 +471,17 @@ Process to verify whether the given issue satisfies the exclude conditions.
 
   / *Type*: bool /
 
-  Indicates if the issue is excluded based on the given conditions.
+  Indicates if the ticket is excluded based on the given conditions.
       """
       if exclude_condition:
          for key, value in exclude_condition.items():
             if key in ["assignee", "labels"]:
-               if not getattr(issue, key):
+               if not getattr(ticket, key):
                   if value == "empty": return False
                else:
-                  if value in getattr(issue, key): return False
+                  if value in getattr(ticket, key): return False
             else:
-               if getattr(issue, key) == value: return False
+               if getattr(ticket, key) == value: return False
       return True
 
    def get_priority_from_labels(self, labels: list) -> int:
@@ -604,8 +614,28 @@ Normalize a list of issues to Ticket objects.
                      priority=self.get_priority(issue),
                      story_point=self.get_story_point(issue),
                      labels=issue.raw['fields']['labels'],
-                     issue_client=issue
+                     issue_client=issue,
+                     type=self.__get_issue_type(issue),
+                     parent=self.__get_parent_epic(issue),
+                     children=self.__get_children_story(issue)
                      ) for issue in issues]
+
+   def __get_issue_type(self, issue):
+      ticket_type = issue.raw['fields']['issuetype']['name']
+      if ticket_type.title() in self.SUPPORT_TYPES:
+         return ticket_type
+      else:
+         raise Exception(f"Not support ticket type {ticket_type}")
+
+   def __get_parent_epic(self, issue):
+      if 'customfield_11420' in issue.raw['fields']:
+         return issue.raw['fields']['customfield_11420']
+      return None
+
+   def __get_children_story(self, issue):
+      # Current no information from issue object of Epic about children issue(s)
+      # It requires another JQL to search the children issue(s): "Epic Link" = {issue.key}
+      return None
 
    def __get_component(self, issue):
       if len(issue.raw['fields']['components']) > 0:
@@ -774,7 +804,7 @@ Get the priority of an issue.
 
 * ``issue``
 
-  / *Condition*: required / *Type*: Issue /
+  / *Condition*: required / *Type*: jira.Issue /
 
   The issue object.
 
@@ -806,7 +836,7 @@ Get the story points of an issue.
 
 * ``issue``
 
-  / *Condition*: required / *Type*: Issue /
+  / *Condition*: required / *Type*: jira.Issue /
 
   The issue object.
 
@@ -906,7 +936,10 @@ Normalize an issue to a Ticket object.
                     labels=[label.name for label in issue.labels],
                     priority=self.get_priority_from_labels([label.name for label in issue.labels]),
                     story_point=self.get_story_point_from_labels([label.name for label in issue.labels]),
-                    issue_client=issue)
+                    issue_client=issue,
+                    type='Story',
+                    children=self.__get_sub_issues(issue),
+                    parent=self.__get_parent_issue(issue))
 
    def __get_repository_client(self, repository: str = None):
       """
@@ -937,6 +970,27 @@ Get the repository client for the specified repository.
             raise Exception(f"More than one GitHub repository is configured, please specify the working repository")
       else:
          raise Exception(f"Missing GitHub repository information")
+
+   def __get_sub_issues(self, issue):
+      list_sub_issues = []
+      try:
+         res_header, res_data = issue._requester.requestJsonAndCheck("GET", f"{issue.url}/sub_issues")
+         if len(res_data):
+            self.type = "Epic" # Change ticket type to epic if there is sub issue
+            for item in res_data:
+               sub_issue = {
+                  "repository": item['repository_url'].split("/")[-1],
+                  "id": item['number']
+               }
+               list_sub_issues.append(sub_issue)
+      except Exception as reason:
+         raise Exception(f"Error when retrieve sub issue of issue {issue.number}. Reason: {reason}")
+
+      return list_sub_issues
+
+   def __get_parent_issue(self, issue):
+      #Currently no Github API to get parent issue
+      return None
 
    def connect(self, project: str, repository: Union[list, str], token: str, hostname: str = "api.github.com"):
       """
@@ -1011,7 +1065,7 @@ Get tickets from the GitHub tracker.
          for issue in issues:
             if not issue.pull_request:
                issue = self.__normalize_issue(issue, repo)
-               if self.exclude_issue_by_condition(issue, exclude_condition):
+               if self.exclude_ticket_by_condition(issue, exclude_condition):
                   list_issues.append(issue)
 
       return list_issues
@@ -1189,8 +1243,25 @@ Normalize an issue to a Ticket object.
          labels=self.__get_issue_labels(issue),
          priority=self.get_priority_from_labels(issue.labels),
          story_point=self.get_story_point(issue),
-         issue_client=issue
+         issue_client=issue,
+         type="Story",
+         children=self.__get_sub_issues(issue),
+         parent=self.__get_parent_issue(issue)
       )
+
+   def __get_sub_issues(self, issue):
+      # Currently no gitlab api to get sub/children task
+      # There is only the end-point for links: '/projects/{project_id}/issues/{issue_iid}/links'
+      # But it is linked item, not sud/children or parent issue
+      # There is Epic but it is for Premium and was deprecated in GitLab 17.0
+      return None
+
+   def __get_parent_issue(self, issue):
+      # Currently no gitlab api to get sub/children task
+      # There is only the end-point for links: '/projects/{project_id}/issues/{issue_iid}/links'
+      # But it is linked item, not sud/children or parent issue
+      # There is Epic but it is for Premium and was deprecated in GitLab 17.0
+      return None
 
    def __get_issue_id(self, issue):
       """
@@ -1278,7 +1349,10 @@ Get the assignee of an issue.
 
   The assignee of the issue.
       """
-      return issue.assignee['username']
+      if issue.assignee:
+         return issue.assignee['username']
+
+      return None
 
    def __get_issue_url(self, issue):
       """
@@ -1484,7 +1558,7 @@ Get tickets from the Gitlab tracker.
          issues = gl_project.issues.list(**kwargs)
          for issue in issues:
             issue = self.__normalize_issue(issue, project)
-            if self.exclude_issue_by_condition(issue, exclude_condition):
+            if self.exclude_ticket_by_condition(issue, exclude_condition):
                list_issues.append(issue)
 
       return list_issues

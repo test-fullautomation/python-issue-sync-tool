@@ -163,6 +163,13 @@ Write error message to console/file output.
          cls.log(f"{sys.argv[0]} has been stopped!", cls.color_error)
          raise SystemExit(1)
 
+def get_id_from_title(title):
+   oMatch =  re.match(r"\[ (\d+) \]", title)
+   if oMatch:
+      return oMatch.group(1)
+
+   return None
+
 def get_additional_labels_of_sprint(sprint, component, sprint_label_mapping=None, component_mapping=None):
    version_label = ""
 
@@ -611,6 +618,19 @@ Main function to sync issues between tracking systems.
                # create new issue on destination tracker
                if not args.dryrun:
                   try:
+                     # get destination children and parent issue(s) if existing
+                     if issue.parent:
+                        parent_issue = tracker.get_ticket(issue.parent)
+                        des_parent_id = get_id_from_title(parent_issue.title)
+                        if des_parent_id:
+                           # update issue to set parent as destination tracker id
+                           issue.parent = des_parent_id
+                        else:
+                           Logger.log_warning(f"Parent issue {issue.parent} is not synced to {des_tracker.TYPE}.")
+
+                     if issue.children:
+                        pass
+
                      res_id = process_new_issue(issue, des_tracker, assignee, component_mapping)
                      new_issue += 1
                   except Exception as reason:
