@@ -452,6 +452,13 @@ Defined sync attributes:
 (*no returns*)
    """
    dest_issue = des_tracker.get_ticket(org_issue.destination_id)
+
+   # mapping the original status with status labels "in work" and "ready for verifying"
+   if "ready for verifying" in org_issue.labels:
+      org_issue.status = Status.closed
+   elif "in work" in org_issue.labels:
+      org_issue.status = Status.inProgress
+      
    # Update original issue if status is not closed
    # Jira does not allow to add label for closed ticket
    if org_issue.status != Status.closed:
@@ -479,6 +486,8 @@ Defined sync attributes:
          Logger.log_warning(f"Adding 'backlog' label for unplanned issue", indent=6)
          updated_labels = updated_labels+['backlog']
       org_issue.update(labels=updated_labels)
+   else:
+      sync_only_status = True
 
    # Update destination issue
    Logger.log(f"Updating {dest_issue.tracker.title()} issue {dest_issue.id}:", indent=4)
@@ -486,12 +495,12 @@ Defined sync attributes:
       Logger.log(f"Syncing 'Status'... (change from '{dest_issue.status}' to '{org_issue.status}')", indent=6)
       des_tracker.update_ticket_state(dest_issue, org_issue.status)
 
-   # Auto assign when missing assignee from original ticket
-   assignee_id = ""
-   if assignee:
-      assignee_id = assignee.id[des_tracker.TYPE]
-
    if not sync_only_status:
+      # Auto assign when missing assignee from original ticket
+      assignee_id = ""
+      if assignee:
+         assignee_id = assignee.id[des_tracker.TYPE]
+
       des_title = process_title(org_issue.title, org_issue.component, component_mapping)
 
       if dest_issue.title != des_title:
