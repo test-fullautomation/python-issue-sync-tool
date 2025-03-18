@@ -1066,7 +1066,12 @@ Get tickets from the GitHub tracker.
             if not issue.pull_request:
                issue = self.__normalize_issue(issue, repo)
                if self.exclude_ticket_by_condition(issue, exclude_condition):
-                  list_issues.append(issue)
+                  # Put the story (children) issues in front of epic (parent) issues
+                  # in the return list_issues
+                  if issue.type == "Story":
+                     list_issues.insert(0, issue)
+                  else:
+                     list_issues.append(issue)
 
       return list_issues
 
