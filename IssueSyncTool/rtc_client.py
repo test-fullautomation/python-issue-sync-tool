@@ -72,12 +72,15 @@ Client for interacting with RTC (Rational Team Concert).
    """
    itemName = "itemName/com.ibm.team.workitem.WorkItem"
    xml_attr_mapping = {
-      "title": "oslc_cm:ChangeRequest//dcterms:title",
-      "description": "oslc_cm:ChangeRequest//dcterms:description",
-      "story_point": "oslc_cm:ChangeRequest//rtc_ext:com.ibm.team.apt.attribute.complexity",
-      "priority": "oslc_cm:ChangeRequest//oslc_cmx:priority",
-      "assignee": "oslc_cm:ChangeRequest//dcterms:contributor",
-      "labels": "oslc_cm:ChangeRequest//dcterms:subject"
+      "title": "dcterms:title",
+      "description": "dcterms:description",
+      "story_point": "rtc_ext:com.ibm.team.apt.attribute.complexity",
+      "priority": "oslc_cmx:priority",
+      "assignee": "dcterms:contributor",
+      "labels": "dcterms:subject",
+      "children": "rtc_cm:com.ibm.team.workitem.linktype.parentworkitem.children",
+      "parent": "rtc_cm:com.ibm.team.workitem.linktype.parentworkitem.parent",
+      "type": "rtc_cm:type"
    }
    workflow_id = "com.ibm.team.apt.storyWorkflow"
    state_transition = {
@@ -146,11 +149,52 @@ Initialize the RTCClient instance.
       self.login()
       self.defined_complexity = self.__get_complexity_cache()
       self.defined_priority = self.__get_priority()
+      self.defined_workitem_type = self.__get_workitem_type()
       if workflow_id:
          self.workflow_id = workflow_id
       if state_transition:
          self.state_transition = state_transition
       self.state_transition_graph = None
+
+   def __get_workitem_type(self, project_id=None):
+      """
+Get the defined workitem types for the specified project.
+
+**Arguments:**
+
+* ``project_id``
+
+   / *Condition*: optional / *Type*: str / *Default*: None /
+
+   The project ID.
+
+**Returns:**
+
+* ``dict_workitem_type``
+
+   / *Type*: dict /
+
+   A dictionary of workitem types.
+      """
+      if not project_id:
+         if not self.project['id']:
+            self.__get_projectID()
+         project_id = self.project['id']
+
+      url = f"{self.hostname}/ccm/oslc/types/{project_id}"
+
+      res = self.session.get(url, allow_redirects=True, verify=False)
+
+      if res.status_code != 200:
+         raise Exception(f"Failed to request to get priority, url: '{url}'")
+
+      dict_workitem_type = dict()
+      list_workitem_type = res.json()
+      for item in list_workitem_type:
+         workitem_type = item['dcterms:title'].lower()
+         dict_workitem_type[workitem_type] = item['rdf:about']
+
+      return dict_workitem_type
 
    def __build_state_transition(self, state_transition=None):
       """
@@ -686,8 +730,8 @@ Update a work item with the specified attributes.
          for attr, val in kwargs.items():
             if attr not in self.xml_attr_mapping:
                raise Exception(f"Does not support to update workitem '{attr}'")
-            oAttr = oWorkItem.find(self.xml_attr_mapping[attr], nsmap)
-            if attr == "story_point":
+            oAttr = oWorkItem.find(f"oslc_cm:ChangeRequest//{self.xml_attr_mapping[attr]}", nsmap)
+            if attr == "story_point" and oAttr is not None:
                oAttr.set("{%s}resource" % nsmap['rdf'], self.get_complexity_link(val))
             elif attr == "priority":
                oAttr.set("{%s}resource" % nsmap['rdf'], self.get_priority_link(val))
@@ -698,9 +742,38 @@ Update a work item with the specified attributes.
                # replace spaces with underscores due to RTC tag can not contains space
                modified_val = list(map(lambda s: s.replace(" ", "_"), val))
                oAttr.text = ", ".join(modified_val)
+            elif attr == "type":
+               if val.lower() not in self.defined_workitem_type.keys():
+                  raise Exception(f"Not support RTC workitem type {val}")
+               workitem_type_url = self.defined_workitem_type[val.lower()]
+               oAttr.set("{%s}resource" % nsmap['rdf'], workitem_type_url)
+            elif attr == "parent":
+               if val:
+                  if oAttr is not None:
+                     oAttr.set("{%s}resource" % nsmap['rdf'], f"{self.hostname}/ccm/resource/itemName/com.ibm.team.workitem.WorkItem/{val}")
+                  else:
+                     oChangeRequest = oWorkItem.find(f"oslc_cm:ChangeRequest", nsmap)
+                     namespace, xml_node = self.xml_attr_mapping['parent'].split(":")
+                     oParent = etree.Element(f"{{{nsmap[namespace]}}}{xml_node}", nsmap=nsmap)
+                     oParent.set("{%s}resource" % nsmap['rdf'], f"{self.hostname}/ccm/resource/itemName/com.ibm.team.workitem.WorkItem/{val}")
+                     oChangeRequest.append(oParent)
+
+            elif attr == "children":
+               oChangeRequest = oWorkItem.find(f"oslc_cm:ChangeRequest", nsmap)
+               namespace, xml_node = self.xml_attr_mapping['children'].split(":")
+               # Find and remove all existing children node then update the new one
+               current_children = oChangeRequest.findall(self.xml_attr_mapping['children'], nsmap)
+               for child_node in current_children:
+                  oChangeRequest.remove(child_node)
+               for child in val:
+                  oChild = etree.Element(f"{{{nsmap[namespace]}}}{xml_node}", nsmap=nsmap)
+                  oChild.set("{%s}resource" % nsmap['rdf'], f"{self.hostname}/ccm/resource/itemName/com.ibm.team.workitem.WorkItem/{child}")
+                  oChangeRequest.append(oChild)
+
             else:
-               oAttr.clear()
-               oAttr.text = val
+               if oAttr is not None:
+                  oAttr.clear()
+                  oAttr.text = val
 
          update_res = self.session.put(url, allow_redirects=True, verify=False, data=etree.tostring(oWorkItem))
          if update_res.status_code not in [200, 204]:
@@ -785,7 +858,8 @@ Update the state of a work item by performing the specified action.
          raise Exception(f"Failed in requesting to change state of workitem {ticket_id}")
 
    def create_workitem(self, title, description, story_point=0, file_against=None,
-                       assignee=None, priority=None, project_id=None, **kwargs):
+                       assignee=None, priority=None, project_id=None,
+                       type="Story", state = "New", **kwargs):
       """
 Create a new work item.
 
@@ -852,10 +926,22 @@ Create a new work item.
       user_id = self.user
       hostname = self.hostname
 
+      title = escape_xml_content(title)
+      description = escape_xml_content(description)
+
+      # Verify RTC workitem type
+      workitem_type_url = ""
+      if type.lower() not in self.defined_workitem_type.keys():
+         raise Exception(f"Not support RTC workitem type {type}")
+      else:
+         workitem_type_url = self.defined_workitem_type[type.lower()]
+
+      # Get contributor information
       contributors = ""
       if assignee:
-         contributors = f"<dcterms:contributor rdf:resource=\"{hostname}/jts/users/{assignee}\" />"
+         contributors = f"<{self.xml_attr_mapping['assignee']} rdf:resource=\"{hostname}/jts/users/{assignee}\" />"
 
+      # Get priority information
       if priority:
          priority = self.get_priority_link(priority)
       else:
@@ -865,6 +951,7 @@ Create a new work item.
          except:
             priority = ""
 
+      # Get filed against information
       if file_against:
          filed_against = self.get_filedAgainst(file_against)
       elif self.file_against:
@@ -872,21 +959,40 @@ Create a new work item.
       else:
          raise Exception("file_against is required to create RTC workitem")
 
-      state = "New"
-      self.get_complexity_link(story_point)
+      # Get complexity - story point information for story workitem
+      complexity = ""
+      if type == "story":
+         self.get_complexity_link(story_point)
+         complexity = f"<{self.xml_attr_mapping['story_point']} rdf:resource=\"{hostname}/ccm/oslc/enumerations/{project_id}/complexity/{story_point}\"/>"
+
+      # Get tags information
+      tags = ""
+      if 'labels' in kwargs and kwargs['labels']:
+         # replace spaces with underscores due to RTC tag can not contains space
+         labels = list(map(lambda s: s.replace(" ", "_"), kwargs['labels']))
+         tags = ", ".join(labels)
+
+      # Process children/parent for workitem
+      children = ""
+      parent = ""
+      if 'children' in kwargs and kwargs["children"]:
+         workitem_ids = []
+         if isinstance(kwargs['children'], str):
+            workitem_ids = [kwargs['children']]
+         elif isinstance(kwargs['children'], list):
+            workitem_ids = kwargs['children']
+         else:
+            raise TypeError(f"Not support data type {type(kwargs['children'])} for 'children' param")
+
+         for item_id in workitem_ids:
+            children = children + f"<{self.xml_attr_mapping['children']} rdf:resource=\"{hostname}/ccm/resource/itemName/com.ibm.team.workitem.WorkItem/{item_id}\" />"
+
+      if 'parent' in kwargs and kwargs["parent"]:
+         parent = f"<{self.xml_attr_mapping['parent']} rdf:resource=\"{hostname}/ccm/resource/itemName/com.ibm.team.workitem.WorkItem/{kwargs['parent']}\" />"
 
       workitem_template = None
       with open(os.path.join(self.templates_dir ,'workitem.xml')) as fh:
          workitem_template = fh.read()
-
-      title = escape_xml_content(title)
-      description = escape_xml_content(description)
-
-      tags = ""
-      if 'labels' in kwargs:
-         # replace spaces with underscores due to RTC tag can not contains space
-         labels = list(map(lambda s: s.replace(" ", "_"), kwargs['labels']))
-         tags = ", ".join(labels)
 
       req_payload = workitem_template.format(**locals())
       # req_payload = workitem_template.format(

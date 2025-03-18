@@ -1,9 +1,8 @@
 from .rtc_client import RTCClient
 from github import Github, Auth
-from jira import JIRA, Issue
+from jira import JIRA
 from gitlab import Gitlab
 from abc import ABC, abstractmethod
-from datetime import datetime
 from typing import Union, Optional, Callable
 import re
 
@@ -114,6 +113,15 @@ class Ticket:
 Normalized Ticket with required information for syncing between trackers.
    """
 
+   class Type:
+      Epic = "Epic"
+      # Epic = "Program Epic"
+      Story = "Story"
+
+      @classmethod
+      def __contains__(cls, item):
+         return item in cls.__dict__.values()
+
    def __init__(self,
                 tracker: str,
                 original_id: Optional[str] = None,
@@ -130,7 +138,10 @@ Normalized Ticket with required information for syncing between trackers.
                 updatedDate: Optional[str] = None,
                 labels: Optional[list] = None,
                 destination_id: Optional[str] = None,
-                issue_client: Callable = None):
+                issue_client: Callable = None,
+                type: Optional[str] = Type.Story,
+                children: Optional[list] = [],
+                parent: Optional[str] = None):
       """
 Initialize a new Ticket.
 
@@ -242,6 +253,9 @@ Initialize a new Ticket.
       self.priority = priority
       self.destination_id = destination_id
       self.issue_client = issue_client
+      self.type = type
+      self.children = children
+      self.parent = parent
 
    def __repr__(self):
       """
@@ -255,7 +269,7 @@ Return a string representation of the Ticket object.
 
   A string representation of the Ticket object.
       """
-      return (f"Ticket ({self.tracker.capitalize()}: ID={self.id}, title=\"{self.title}\")")
+      return (f"Ticket ({self.tracker.capitalize()}: ID={self.id}, type={self.type}, title=\"{self.title}\")")
 
    def update(self, **kwargs):
       """
@@ -336,6 +350,9 @@ E.g `[ 1234 ] Title of already synced ticket`
          self.destination_id = match.group(1)
          return True
       return False
+
+   def get_sub_issues(self):
+      pass
 
 class TrackerService(ABC):
    """
@@ -437,23 +454,23 @@ Method to create a new ticket on the tracker system.
       """
       pass
 
-   def exclude_issue_by_condition(self, issue: Issue, exclude_condition=None) -> bool:
+   def exclude_ticket_by_condition(self, ticket: Ticket, exclude_condition=None) -> bool:
       """
-Process to verify whether the given issue satisfies the exclude conditions.
+Process to verify whether the given ticket satisfies the exclude conditions.
 
 **Arguments:**
 
-* ``issue``
+* ``ticket``
 
-  / *Condition*: required / *Type*: Issue /
+  / *Condition*: required / *Type*: Ticket /
 
-  The issue object to be checked.
+  The ticket object to be checked.
 
 * ``exclude_condition``
 
   / *Condition*: optional / *Type*: dict / *Default*: None /
 
-  A dictionary of conditions to exclude the issue.
+  A dictionary of conditions to exclude the ticket.
 
 **Returns:**
 
@@ -461,17 +478,17 @@ Process to verify whether the given issue satisfies the exclude conditions.
 
   / *Type*: bool /
 
-  Indicates if the issue is excluded based on the given conditions.
+  Indicates if the ticket is excluded based on the given conditions.
       """
       if exclude_condition:
          for key, value in exclude_condition.items():
             if key in ["assignee", "labels"]:
-               if not getattr(issue, key):
+               if not getattr(ticket, key):
                   if value == "empty": return False
                else:
-                  if value in getattr(issue, key): return False
+                  if value in getattr(ticket, key): return False
             else:
-               if getattr(issue, key) == value: return False
+               if getattr(ticket, key) == value: return False
       return True
 
    def get_priority_from_labels(self, labels: list) -> int:
@@ -573,15 +590,15 @@ Initialize the JiraTracker instance.
       self.project = None
       self.hostname = None
 
-   def __normalize_issue(self, issues: list) -> list[Ticket]:
+   def __normalize_issue(self, issue):
       """
-Normalize a list of issues to Ticket objects.
+Normalize a Jira ticket to Ticket object.
 
 **Arguments:**
 
-* ``issues``
+* ``issue``
 
-  / *Condition*: required / *Type*: list /
+  / *Condition*: required / *Type*: class <Jira.issue> /
 
   A list of issues to normalize.
 
@@ -593,7 +610,7 @@ Normalize a list of issues to Ticket objects.
 
   A list of Ticket objects created from the issue data.
       """
-      return [Ticket(self.TYPE,
+      return Ticket(self.TYPE,
                      issue.key,
                      issue.raw['fields']['summary'],
                      issue.raw['fields']['description'],
@@ -604,8 +621,30 @@ Normalize a list of issues to Ticket objects.
                      priority=self.get_priority(issue),
                      story_point=self.get_story_point(issue),
                      labels=issue.raw['fields']['labels'],
-                     issue_client=issue
-                     ) for issue in issues]
+                     issue_client=issue,
+                     type=self.__get_issue_type(issue),
+                     parent=self.__get_parent_epic(issue),
+                     children=self.__get_children_story(issue)
+                     )
+
+   def __get_issue_type(self, issue):
+      ticket_type = issue.raw['fields']['issuetype']['name']
+      if ticket_type.title() == Ticket.Type.Epic:
+         return ticket_type
+      else:
+         # raise Exception(f"Not support ticket type {ticket_type}")
+         # return Story as default
+         return Ticket.Type.Story
+
+   def __get_parent_epic(self, issue):
+      if 'customfield_11420' in issue.raw['fields']:
+         return issue.raw['fields']['customfield_11420']
+      return None
+
+   def __get_children_story(self, issue):
+      # Current no information from issue object of Epic about children issue(s)
+      # It requires another JQL to search the children issue(s): "Epic Link" = {issue.key}
+      return None
 
    def __get_component(self, issue):
       if len(issue.raw['fields']['components']) > 0:
@@ -704,9 +743,15 @@ Get tickets from the Jira tracker.
             elif isinstance(val, str):
                jql.append(f"{key} = {val}")
 
-      list_issues = self.tracker_client.search_issues(" AND ".join(jql))
-      issues = self.__normalize_issue(list_issues)
-      return issues
+      issues = self.tracker_client.search_issues(" AND ".join(jql))
+      for issue in issues:
+         normalized_issue = self.__normalize_issue(issue)
+         # Put the Epic in front of story (contains parent Epic) in the return list_issues
+         if normalized_issue.type == Ticket.Type.Epic:
+            list_issues.insert(0, issue)
+         else:
+            list_issues.append(issue)
+      return list_issues
 
    def create_ticket(self, project: str = None, **kwargs) -> str:
       """
@@ -774,7 +819,7 @@ Get the priority of an issue.
 
 * ``issue``
 
-  / *Condition*: required / *Type*: Issue /
+  / *Condition*: required / *Type*: jira.Issue /
 
   The issue object.
 
@@ -806,7 +851,7 @@ Get the story points of an issue.
 
 * ``issue``
 
-  / *Condition*: required / *Type*: Issue /
+  / *Condition*: required / *Type*: jira.Issue /
 
   The issue object.
 
@@ -906,7 +951,10 @@ Normalize an issue to a Ticket object.
                     labels=[label.name for label in issue.labels],
                     priority=self.get_priority_from_labels([label.name for label in issue.labels]),
                     story_point=self.get_story_point_from_labels([label.name for label in issue.labels]),
-                    issue_client=issue)
+                    issue_client=issue,
+                    type=self.__get_issue_type(issue),
+                    children=self.__get_sub_issues(issue),
+                    parent=self.__get_parent_issue(issue))
 
    def __get_repository_client(self, repository: str = None):
       """
@@ -937,6 +985,35 @@ Get the repository client for the specified repository.
             raise Exception(f"More than one GitHub repository is configured, please specify the working repository")
       else:
          raise Exception(f"Missing GitHub repository information")
+
+   def __get_issue_type(self, issue):
+      try:
+         if issue._rawData['sub_issues_summary']['total'] > 0:
+            return Ticket.Type.Epic
+      except:
+         pass
+
+      return Ticket.Type.Story
+
+   def __get_sub_issues(self, issue):
+      list_sub_issues = []
+      try:
+         res_header, res_data = issue._requester.requestJsonAndCheck("GET", f"{issue.url}/sub_issues")
+         if len(res_data):
+            for item in res_data:
+               sub_issue = {
+                  "repository": item['repository_url'].split("/")[-1],
+                  "id": item['number']
+               }
+               list_sub_issues.append(sub_issue)
+      except Exception as reason:
+         raise Exception(f"Error when retrieve sub issue of issue {issue.number}. Reason: {reason}")
+
+      return list_sub_issues
+
+   def __get_parent_issue(self, issue):
+      #Currently no Github API to get parent issue
+      return None
 
    def connect(self, project: str, repository: Union[list, str], token: str, hostname: str = "api.github.com"):
       """
@@ -1011,8 +1088,13 @@ Get tickets from the GitHub tracker.
          for issue in issues:
             if not issue.pull_request:
                issue = self.__normalize_issue(issue, repo)
-               if self.exclude_issue_by_condition(issue, exclude_condition):
-                  list_issues.append(issue)
+               if self.exclude_ticket_by_condition(issue, exclude_condition):
+                  # Put the sub issues in front of parent issues (contains sub issue information)
+                  # in the return list_issues
+                  if issue.type == "Story":
+                     list_issues.insert(0, issue)
+                  else:
+                     list_issues.append(issue)
 
       return list_issues
 
@@ -1156,6 +1238,8 @@ other method requires `project` information to interact properly with inside iss
 Initialize the GitlabTracker instance.
       """
       super().__init__()
+      self.project = list()
+      self.group = None
 
    def __normalize_issue(self, issue, project):
       """
@@ -1189,8 +1273,25 @@ Normalize an issue to a Ticket object.
          labels=self.__get_issue_labels(issue),
          priority=self.get_priority_from_labels(issue.labels),
          story_point=self.get_story_point(issue),
-         issue_client=issue
+         issue_client=issue,
+         type="Story",
+         children=self.__get_sub_issues(issue),
+         parent=self.__get_parent_issue(issue)
       )
+
+   def __get_sub_issues(self, issue):
+      # Currently no gitlab api to get sub/children task
+      # There is only the end-point for links: '/projects/{project_id}/issues/{issue_iid}/links'
+      # But it is linked item, not sud/children or parent issue
+      # There is Epic but it is for Premium and was deprecated in GitLab 17.0
+      return None
+
+   def __get_parent_issue(self, issue):
+      # Currently no gitlab api to get sub/children task
+      # There is only the end-point for links: '/projects/{project_id}/issues/{issue_iid}/links'
+      # But it is linked item, not sud/children or parent issue
+      # There is Epic but it is for Premium and was deprecated in GitLab 17.0
+      return None
 
    def __get_issue_id(self, issue):
       """
@@ -1278,7 +1379,10 @@ Get the assignee of an issue.
 
   The assignee of the issue.
       """
-      return issue.assignee['username']
+      if issue.assignee:
+         return issue.assignee['username']
+
+      return None
 
    def __get_issue_url(self, issue):
       """
@@ -1484,7 +1588,7 @@ Get tickets from the Gitlab tracker.
          issues = gl_project.issues.list(**kwargs)
          for issue in issues:
             issue = self.__normalize_issue(issue, project)
-            if self.exclude_issue_by_condition(issue, exclude_condition):
+            if self.exclude_ticket_by_condition(issue, exclude_condition):
                list_issues.append(issue)
 
       return list_issues
@@ -1665,14 +1769,58 @@ Normalize a list of issues to Ticket objects.
                      issue['dcterms:identifier'],
                      issue['dcterms:title'],
                      issue['dcterms:description'],
-                     issue['dcterms:contributor']['rdf:resource'],
+                     self.__get_user_id(issue),
                      issue['rdf:about'],
-                     Status.normalize_issue_status(self.TYPE, issue['oslc_cm:status']),
-                     story_point=issue['rtc_ext:com.ibm.team.workitem.attribute.storyPointsNumeric'],
+                     self.__get_workitem_status(issue),
+                     self.__get_story_point(issue),
                      priority=self.get_priority(issue),
                      version=self.get_plannedFor(issue),
-                     issue_client=self.tracker_client
+                     issue_client=self.tracker_client,
+                     type=issue['dcterms:type'],
+                     children=self.__get_children_issues(issue),
+                     parent=self.__get_parent_issue(issue)
                      ) for issue in issues]
+
+   def __get_workitem_status(self, issue):
+      if issue['dcterms:type'] == "Story":
+         return Status.normalize_issue_status(self.TYPE, issue['oslc_cm:status'])
+      else:
+         return Status.open
+
+   def __get_story_point(self, issue):
+      if 'rtc_ext:com.ibm.team.workitem.attribute.storyPointsNumeric' in issue:
+         return issue['rtc_ext:com.ibm.team.workitem.attribute.storyPointsNumeric']
+      else:
+         return 0
+
+   def __get_children_issues(self, issue):
+      children_id = []
+      children_nodes = issue['rtc_cm:com.ibm.team.workitem.linktype.parentworkitem.children']
+      for node in children_nodes:
+         try:
+            workitem_id = node['rdf:resource'].split("/")[-1]
+            children_id.append(workitem_id)
+         except:
+            pass
+      return children_id
+
+   def __get_parent_issue(self, issue):
+      parent_id = None
+      parent_nodes = issue['rtc_cm:com.ibm.team.workitem.linktype.parentworkitem.parent']
+      try:
+         parent_id = parent_nodes[0]['rdf:resource'].split("/")[-1]
+      except:
+         pass
+      return parent_id
+
+   def __get_user_id(self, issue):
+      user_id = None
+      try:
+         user_url = issue['dcterms:contributor']['rdf:resource']
+         user_id =  user_url.split("/")[-1].lower()
+      except:
+         pass
+      return user_id
 
    def connect(self, project: str, hostname: str, username: str = None,
                token: str = None, file_against: str = None,

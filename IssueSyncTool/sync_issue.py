@@ -8,7 +8,7 @@ from .version import VERSION, VERSION_DATE
 from .utils import CONFIG_SCHEMA, REGEX_SPRINT_LABEL, REGEX_VERSION_LABEL
 from argparse import ArgumentParser
 from jsonschema import validate
-from .tracker import Tracker, Status
+from .tracker import Tracker, Status, Ticket
 from .user import UserManagement
 
 class Logger:
@@ -162,6 +162,40 @@ Write error message to console/file output.
       if fatal_error:
          cls.log(f"{sys.argv[0]} has been stopped!", cls.color_error)
          raise SystemExit(1)
+
+def update_issue_relationship(tracker, issue, des_tracker_type):
+   # get destination children and parent issue(s) if existing
+   if issue.parent:
+      # Used for Jira tracker
+      parent_issue = tracker.get_ticket(issue.parent)
+      des_parent_id = get_id_from_title(parent_issue.title)
+      if des_parent_id:
+         # update issue to set parent as destination tracker id
+         issue.parent = des_parent_id
+      else:
+         Logger.log_warning(f"Parent issue {issue.parent} is not synced to {des_tracker_type}.")
+
+   if issue.children:
+      #Used for Github tracker
+      des_children = []
+      for child in issue.children:
+         child_issue = tracker.get_ticket(**child)
+         des_child_id = get_id_from_title(child_issue.title)
+         if des_child_id:
+            des_children.append(des_child_id)
+         else:
+            Logger.log_warning(f"Child issue {child['id']} is not synced to {des_tracker_type}.")
+      # update issue to set children as destination tracker id
+      issue.children = des_children
+
+   return issue
+
+def get_id_from_title(title):
+   oMatch =  re.match(r"\[ (\d+) \]", title)
+   if oMatch:
+      return oMatch.group(1)
+
+   return None
 
 def get_additional_labels_of_sprint(sprint, component, sprint_label_mapping=None, component_mapping=None):
    version_label = ""
@@ -386,7 +420,10 @@ title with destination issue's id.
                                       story_point=issue.story_point,
                                       assignee=assignee_id,
                                       priority=issue.priority,
-                                      labels=issue.labels)
+                                      labels=issue.labels,
+                                      type=issue.type,
+                                      children=issue.children,
+                                      parent=issue.parent)
 
    issue.update(title=f"[ {res_id} ] {issue.title}")
 
@@ -458,7 +495,7 @@ Defined sync attributes:
       org_issue.status = Status.closed
    elif "in work" in org_issue.labels:
       org_issue.status = Status.inProgress
-      
+
    # Update original issue if status is not closed
    # Jira does not allow to add label for closed ticket
    if org_issue.status != Status.closed:
@@ -491,11 +528,14 @@ Defined sync attributes:
 
    # Update destination issue
    Logger.log(f"Updating {dest_issue.tracker.title()} issue {dest_issue.id}:", indent=4)
-   if dest_issue.status != org_issue.status:
+   # Does not change status of Epic. it requires a different state transition from Story
+   if dest_issue.status != org_issue.status and org_issue.type != Ticket.Type.Epic:
       Logger.log(f"Syncing 'Status'... (change from '{dest_issue.status}' to '{org_issue.status}')", indent=6)
       des_tracker.update_ticket_state(dest_issue, org_issue.status)
 
    if not sync_only_status:
+      if dest_issue.type != org_issue.type:
+         Logger.log_warning(f"Changing issue type from '{dest_issue.type}' to '{org_issue.type}')", indent=6)
       # Auto assign when missing assignee from original ticket
       assignee_id = ""
       if assignee:
@@ -503,18 +543,28 @@ Defined sync attributes:
 
       des_title = process_title(org_issue.title, org_issue.component, component_mapping)
 
+      changing_attribute_param = dict()
+
+      if dest_issue.type != org_issue.type:
+         changing_attribute_param['type'] = org_issue.type
       if dest_issue.title != des_title:
-         Logger.log(f"Syncing 'Title', 'Description', 'Labels', 'Priority', 'Assignee' and 'Story Point'", indent=6)
-         des_tracker.update_ticket(dest_issue.id, title=des_title ,story_point=org_issue.story_point,
-                                   labels=updated_labels, priority=org_issue.priority,
-                                   assignee=assignee_id,
-                                   description=f"Original issue url: {org_issue.url}\n\n{org_issue.description}")
-      else:
-         Logger.log(f"Syncing 'Description', 'Labels', 'Priority', 'Assignee' and 'Story Point'", indent=6)
-         des_tracker.update_ticket(dest_issue.id, story_point=org_issue.story_point,
-                                   labels=updated_labels, priority=org_issue.priority,
-                                   assignee=assignee_id,
-                                   description=f"Original issue url: {org_issue.url}\n\n{org_issue.description}")
+         changing_attribute_param['title'] = des_title
+      changing_attribute_param['description'] = f"Original issue url: {org_issue.url}\n\n{org_issue.description}"
+      if dest_issue.labels != updated_labels:
+         changing_attribute_param['labels'] = updated_labels
+      if dest_issue.story_point != org_issue.story_point:
+         changing_attribute_param['story_point'] = org_issue.story_point
+      if dest_issue.priority != org_issue.priority:
+         changing_attribute_param['priority'] = org_issue.priority
+      if dest_issue.assignee != assignee_id:
+         changing_attribute_param['assignee'] = assignee_id
+      if dest_issue.parent != org_issue.parent:
+         changing_attribute_param['parent'] = org_issue.parent
+      if dest_issue.children != org_issue.children:
+         changing_attribute_param['children'] = org_issue.children
+
+      Logger.log(f"Syncing {', '.join([attr.title() for attr in changing_attribute_param.keys()])}", indent=6)
+      des_tracker.update_ticket(dest_issue.id, **changing_attribute_param)
 
 def SyncIssue():
    """
@@ -604,6 +654,7 @@ Main function to sync issues between tracking systems.
                sync_status = "synced"
                if not args.dryrun:
                   try:
+                     issue = update_issue_relationship(tracker, issue, des_tracker.TYPE)
                      process_sync_issues(issue, tracker, dest_issue, des_tracker, assignee, component_mapping, sprint_version_mapping, args.status_only)
                      sync_issue += 1
                   except Exception as reason:
@@ -622,6 +673,7 @@ Main function to sync issues between tracking systems.
                # create new issue on destination tracker
                if not args.dryrun:
                   try:
+                     issue = update_issue_relationship(tracker, issue, des_tracker.TYPE)
                      res_id = process_new_issue(issue, des_tracker, assignee, component_mapping)
                      new_issue += 1
                   except Exception as reason:
