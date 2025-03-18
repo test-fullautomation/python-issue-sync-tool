@@ -79,7 +79,8 @@ Client for interacting with RTC (Rational Team Concert).
       "assignee": "dcterms:contributor",
       "labels": "dcterms:subject",
       "children": "rtc_cm:com.ibm.team.workitem.linktype.parentworkitem.children",
-      "parent": "rtc_cm:com.ibm.team.workitem.linktype.parentworkitem.parent"
+      "parent": "rtc_cm:com.ibm.team.workitem.linktype.parentworkitem.parent",
+      "type": "rtc_cm:type"
    }
    workflow_id = "com.ibm.team.apt.storyWorkflow"
    state_transition = {
@@ -730,7 +731,7 @@ Update a work item with the specified attributes.
             if attr not in self.xml_attr_mapping:
                raise Exception(f"Does not support to update workitem '{attr}'")
             oAttr = oWorkItem.find(f"oslc_cm:ChangeRequest//{self.xml_attr_mapping[attr]}", nsmap)
-            if attr == "story_point":
+            if attr == "story_point" and oAttr is not None:
                oAttr.set("{%s}resource" % nsmap['rdf'], self.get_complexity_link(val))
             elif attr == "priority":
                oAttr.set("{%s}resource" % nsmap['rdf'], self.get_priority_link(val))
@@ -741,9 +742,38 @@ Update a work item with the specified attributes.
                # replace spaces with underscores due to RTC tag can not contains space
                modified_val = list(map(lambda s: s.replace(" ", "_"), val))
                oAttr.text = ", ".join(modified_val)
+            elif attr == "type":
+               if val.lower() not in self.defined_workitem_type.keys():
+                  raise Exception(f"Not support RTC workitem type {val}")
+               workitem_type_url = self.defined_workitem_type[val.lower()]
+               oAttr.set("{%s}resource" % nsmap['rdf'], workitem_type_url)
+            elif attr == "parent":
+               if val:
+                  if oAttr is not None:
+                     oAttr.set("{%s}resource" % nsmap['rdf'], f"{self.hostname}/ccm/resource/itemName/com.ibm.team.workitem.WorkItem/{val}")
+                  else:
+                     oChangeRequest = oWorkItem.find(f"oslc_cm:ChangeRequest", nsmap)
+                     namespace, xml_node = self.xml_attr_mapping['parent'].split(":")
+                     oParent = etree.Element(f"{{{nsmap[namespace]}}}{xml_node}", nsmap=nsmap)
+                     oParent.set("{%s}resource" % nsmap['rdf'], f"{self.hostname}/ccm/resource/itemName/com.ibm.team.workitem.WorkItem/{val}")
+                     oChangeRequest.append(oParent)
+
+            elif attr == "children":
+               oChangeRequest = oWorkItem.find(f"oslc_cm:ChangeRequest", nsmap)
+               namespace, xml_node = self.xml_attr_mapping['children'].split(":")
+               # Find and remove all existing children node then update the new one
+               current_children = oChangeRequest.findall(self.xml_attr_mapping['children'], nsmap)
+               for child_node in current_children:
+                  oChangeRequest.remove(child_node)
+               for child in val:
+                  oChild = etree.Element(f"{{{nsmap[namespace]}}}{xml_node}", nsmap=nsmap)
+                  oChild.set("{%s}resource" % nsmap['rdf'], f"{self.hostname}/ccm/resource/itemName/com.ibm.team.workitem.WorkItem/{child}")
+                  oChangeRequest.append(oChild)
+
             else:
-               oAttr.clear()
-               oAttr.text = val
+               if oAttr is not None:
+                  oAttr.clear()
+                  oAttr.text = val
 
          update_res = self.session.put(url, allow_redirects=True, verify=False, data=etree.tostring(oWorkItem))
          if update_res.status_code not in [200, 204]:
@@ -829,7 +859,7 @@ Update the state of a work item by performing the specified action.
 
    def create_workitem(self, title, description, story_point=0, file_against=None,
                        assignee=None, priority=None, project_id=None,
-                       type="story", state = "New", **kwargs):
+                       type="Story", state = "New", **kwargs):
       """
 Create a new work item.
 
@@ -937,7 +967,7 @@ Create a new work item.
 
       # Get tags information
       tags = ""
-      if 'labels' in kwargs:
+      if 'labels' in kwargs and kwargs['labels']:
          # replace spaces with underscores due to RTC tag can not contains space
          labels = list(map(lambda s: s.replace(" ", "_"), kwargs['labels']))
          tags = ", ".join(labels)
@@ -945,7 +975,7 @@ Create a new work item.
       # Process children/parent for workitem
       children = ""
       parent = ""
-      if 'children' in kwargs:
+      if 'children' in kwargs and kwargs["children"]:
          workitem_ids = []
          if isinstance(kwargs['children'], str):
             workitem_ids = [kwargs['children']]
@@ -957,7 +987,7 @@ Create a new work item.
          for item_id in workitem_ids:
             children = children + f"<{self.xml_attr_mapping['children']} rdf:resource=\"{hostname}/ccm/resource/itemName/com.ibm.team.workitem.WorkItem/{item_id}\" />"
 
-      if 'parent' in kwargs:
+      if 'parent' in kwargs and kwargs["parent"]:
          parent = f"<{self.xml_attr_mapping['parent']} rdf:resource=\"{hostname}/ccm/resource/itemName/com.ibm.team.workitem.WorkItem/{kwargs['parent']}\" />"
 
       workitem_template = None
