@@ -18,5 +18,5 @@
 #
 # Version and date of SyncIssue
 #
-VERSION      = "0.2.2"
-VERSION_DATE = "25.02.2025"
+VERSION      = "0.2.4"
+VERSION_DATE = "14.03.2025"
