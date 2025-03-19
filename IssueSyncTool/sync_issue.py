@@ -560,11 +560,15 @@ Defined sync attributes:
          changing_attribute_param['assignee'] = assignee_id
       if dest_issue.parent != org_issue.parent:
          changing_attribute_param['parent'] = org_issue.parent
-      if dest_issue.children != org_issue.children:
+      if sorted(dest_issue.children) != sorted(org_issue.children):
          changing_attribute_param['children'] = org_issue.children
 
       Logger.log(f"Syncing {', '.join([attr.title() for attr in changing_attribute_param.keys()])}", indent=6)
       des_tracker.update_ticket(dest_issue.id, **changing_attribute_param)
+
+      # Update title of Epic again to avoid the title changed due to children update
+      if dest_issue.type == Ticket.Type.Epic and 'children' in changing_attribute_param:
+         des_tracker.update_ticket(dest_issue.id, title=des_title)
 
 def SyncIssue():
    """

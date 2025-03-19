@@ -590,7 +590,7 @@ Initialize the JiraTracker instance.
       self.project = None
       self.hostname = None
 
-   def __normalize_issue(self, issue):
+   def __normalize_issue(self, issue) -> Ticket:
       """
 Normalize a Jira ticket to Ticket object.
 
@@ -598,7 +598,7 @@ Normalize a Jira ticket to Ticket object.
 
 * ``issue``
 
-  / *Condition*: required / *Type*: class <Jira.issue> /
+  / *Condition*: required / *Type*: <class 'jira.resources.Issue'> /
 
   A list of issues to normalize.
 
@@ -644,7 +644,7 @@ Normalize a Jira ticket to Ticket object.
    def __get_children_story(self, issue):
       # Current no information from issue object of Epic about children issue(s)
       # It requires another JQL to search the children issue(s): "Epic Link" = {issue.key}
-      return None
+      return []
 
    def __get_component(self, issue):
       if len(issue.raw['fields']['components']) > 0:
@@ -700,7 +700,7 @@ Get a ticket by its ID.
   The ticket object.
       """
       issue = self.tracker_client.issue(id)
-      return self.__normalize_issue([issue])[0]
+      return self.__normalize_issue(issue)
 
    def get_tickets(self, **kwargs) -> list[Ticket]:
       """
@@ -748,9 +748,9 @@ Get tickets from the Jira tracker.
          normalized_issue = self.__normalize_issue(issue)
          # Put the Epic in front of story (contains parent Epic) in the return list_issues
          if normalized_issue.type == Ticket.Type.Epic:
-            list_issues.insert(0, issue)
+            list_issues.insert(0, normalized_issue)
          else:
-            list_issues.append(issue)
+            list_issues.append(normalized_issue)
       return list_issues
 
    def create_ticket(self, project: str = None, **kwargs) -> str:
@@ -819,7 +819,7 @@ Get the priority of an issue.
 
 * ``issue``
 
-  / *Condition*: required / *Type*: jira.Issue /
+  / *Condition*: required / *Type*: <class 'jira.resources.Issue'> /
 
   The issue object.
 
@@ -851,7 +851,7 @@ Get the story points of an issue.
 
 * ``issue``
 
-  / *Condition*: required / *Type*: jira.Issue /
+  / *Condition*: required / *Type*: <class 'jira.resources.Issue'> /
 
   The issue object.
 
@@ -914,7 +914,7 @@ Initialize the GithubTracker instance.
       self.repositories = list()
       self.project = None
 
-   def __normalize_issue(self, issue: str, repo: str) -> Ticket:
+   def __normalize_issue(self, issue, repo: str) -> Ticket:
       """
 Normalize an issue to a Ticket object.
 
@@ -922,7 +922,7 @@ Normalize an issue to a Ticket object.
 
 * ``issue``
 
-  / *Condition*: required / *Type*: str /
+  / *Condition*: required / *Type*: <class 'gitlab.v4.objects.issues.ProjectIssue'> /
 
   The issue data.
 
@@ -1249,9 +1249,15 @@ Normalize an issue to a Ticket object.
 
 * ``issue``
 
-  / *Condition*: required / *Type*: dict /
+  / *Condition*: required / *Type*: <class 'gitlab.v4.objects.issues.ProjectIssue'> /
 
   The issue data.
+
+* ``project``
+
+  / *Condition*: required / *Type*: str /
+
+  The gitlab project name.
 
 **Returns:**
 
@@ -1284,7 +1290,7 @@ Normalize an issue to a Ticket object.
       # There is only the end-point for links: '/projects/{project_id}/issues/{issue_iid}/links'
       # But it is linked item, not sud/children or parent issue
       # There is Epic but it is for Premium and was deprecated in GitLab 17.0
-      return None
+      return []
 
    def __get_parent_issue(self, issue):
       # Currently no gitlab api to get sub/children task
@@ -1711,7 +1717,7 @@ Create a new label in the Gitlab tracker.
   The project name.
       """
       gl_project = self.__get_project_client(repository)
-      list_existing_labels = gl_project.labels.list()
+      list_existing_labels = gl_project.labels.list(get_all=True)
       for item in list_existing_labels:
          if item.name == label_name:
             return
@@ -1745,41 +1751,41 @@ Initialize the RTCTracker instance.
                             "rtc_cm:teamArea",
                             "rtc_cm:com.ibm.team.workitem.attribute.storyPointsNumeric"]
 
-   def __normalize_issue(self, issues: list) -> list[Ticket]:
+   def __normalize_issue(self, issue):
       """
-Normalize a list of issues to Ticket objects.
+Normalize a RTC issues to Ticket object.
 
 **Arguments:**
 
 * ``issues``
 
-  / *Condition*: required / *Type*: list /
+  / *Condition*: required / *Type*: dict /
 
-  A list of issues to normalize.
+  A issue to normalize.
 
 **Returns:**
 
-* ``tickets``
+* ``ticket``
 
-  / *Type*: list[Ticket] /
+  / *Type*: Ticket /
 
-  A list of Ticket objects created from the issue data.
+  A Ticket object created from the issue data.
       """
-      return [Ticket(self.TYPE,
+      return Ticket(self.TYPE,
                      issue['dcterms:identifier'],
                      issue['dcterms:title'],
                      issue['dcterms:description'],
                      self.__get_user_id(issue),
                      issue['rdf:about'],
                      self.__get_workitem_status(issue),
-                     self.__get_story_point(issue),
+                     story_point=self.__get_story_point(issue),
                      priority=self.get_priority(issue),
                      version=self.get_plannedFor(issue),
                      issue_client=self.tracker_client,
                      type=issue['dcterms:type'],
                      children=self.__get_children_issues(issue),
                      parent=self.__get_parent_issue(issue)
-                     ) for issue in issues]
+                     )
 
    def __get_workitem_status(self, issue):
       if issue['dcterms:type'] == "Story":
@@ -1892,7 +1898,7 @@ Get a ticket by its ID.
   The ticket object.
       """
       ticket = self.tracker_client.get_workitem(id)
-      return self.__normalize_issue([ticket])[0]
+      return self.__normalize_issue(ticket)
 
    def get_tickets(self, **kwargs) -> list[Ticket]:
       """

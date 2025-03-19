@@ -757,19 +757,21 @@ Update a work item with the specified attributes.
                      oParent = etree.Element(f"{{{nsmap[namespace]}}}{xml_node}", nsmap=nsmap)
                      oParent.set("{%s}resource" % nsmap['rdf'], f"{self.hostname}/ccm/resource/itemName/com.ibm.team.workitem.WorkItem/{val}")
                      oChangeRequest.append(oParent)
-
             elif attr == "children":
                oChangeRequest = oWorkItem.find(f"oslc_cm:ChangeRequest", nsmap)
                namespace, xml_node = self.xml_attr_mapping['children'].split(":")
                # Find and remove all existing children node then update the new one
                current_children = oChangeRequest.findall(self.xml_attr_mapping['children'], nsmap)
-               for child_node in current_children:
-                  oChangeRequest.remove(child_node)
-               for child in val:
-                  oChild = etree.Element(f"{{{nsmap[namespace]}}}{xml_node}", nsmap=nsmap)
-                  oChild.set("{%s}resource" % nsmap['rdf'], f"{self.hostname}/ccm/resource/itemName/com.ibm.team.workitem.WorkItem/{child}")
-                  oChangeRequest.append(oChild)
-
+               if current_children is not None:
+                  for child_node in current_children:
+                     oChangeRequest.remove(child_node)
+               if val:
+                  for child in val:
+                     oChild = etree.Element(f"{{{nsmap[namespace]}}}{xml_node}", nsmap=nsmap)
+                     oChild.set("{%s}resource" % nsmap['rdf'], f"{self.hostname}/ccm/resource/itemName/com.ibm.team.workitem.WorkItem/{child}")
+                     oChangeRequest.append(oChild)
+            elif attr == "title":
+               oAttr.text = val
             else:
                if oAttr is not None:
                   oAttr.clear()
