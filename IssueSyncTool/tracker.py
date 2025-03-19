@@ -1778,7 +1778,7 @@ Normalize a RTC issues to Ticket object.
                      self.__get_user_id(issue),
                      issue['rdf:about'],
                      self.__get_workitem_status(issue),
-                     self.__get_story_point(issue),
+                     story_point=self.__get_story_point(issue),
                      priority=self.get_priority(issue),
                      version=self.get_plannedFor(issue),
                      issue_client=self.tracker_client,

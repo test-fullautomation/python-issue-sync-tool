@@ -770,7 +770,8 @@ Update a work item with the specified attributes.
                      oChild = etree.Element(f"{{{nsmap[namespace]}}}{xml_node}", nsmap=nsmap)
                      oChild.set("{%s}resource" % nsmap['rdf'], f"{self.hostname}/ccm/resource/itemName/com.ibm.team.workitem.WorkItem/{child}")
                      oChangeRequest.append(oChild)
-
+            elif attr == "title":
+               oAttr.text = val
             else:
                if oAttr is not None:
                   oAttr.clear()
