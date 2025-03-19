@@ -590,7 +590,7 @@ Initialize the JiraTracker instance.
       self.project = None
       self.hostname = None
 
-   def __normalize_issue(self, issue):
+   def __normalize_issue(self, issue) -> Ticket:
       """
 Normalize a Jira ticket to Ticket object.
 
@@ -598,7 +598,7 @@ Normalize a Jira ticket to Ticket object.
 
 * ``issue``
 
-  / *Condition*: required / *Type*: class <Jira.issue> /
+  / *Condition*: required / *Type*: <class 'jira.resources.Issue'> /
 
   A list of issues to normalize.
 
@@ -700,7 +700,7 @@ Get a ticket by its ID.
   The ticket object.
       """
       issue = self.tracker_client.issue(id)
-      return self.__normalize_issue([issue])[0]
+      return self.__normalize_issue(issue)
 
    def get_tickets(self, **kwargs) -> list[Ticket]:
       """
@@ -748,9 +748,9 @@ Get tickets from the Jira tracker.
          normalized_issue = self.__normalize_issue(issue)
          # Put the Epic in front of story (contains parent Epic) in the return list_issues
          if normalized_issue.type == Ticket.Type.Epic:
-            list_issues.insert(0, issue)
+            list_issues.insert(0, normalized_issue)
          else:
-            list_issues.append(issue)
+            list_issues.append(normalized_issue)
       return list_issues
 
    def create_ticket(self, project: str = None, **kwargs) -> str:
@@ -819,7 +819,7 @@ Get the priority of an issue.
 
 * ``issue``
 
-  / *Condition*: required / *Type*: jira.Issue /
+  / *Condition*: required / *Type*: <class 'jira.resources.Issue'> /
 
   The issue object.
 
@@ -851,7 +851,7 @@ Get the story points of an issue.
 
 * ``issue``
 
-  / *Condition*: required / *Type*: jira.Issue /
+  / *Condition*: required / *Type*: <class 'jira.resources.Issue'> /
 
   The issue object.
 
@@ -914,7 +914,7 @@ Initialize the GithubTracker instance.
       self.repositories = list()
       self.project = None
 
-   def __normalize_issue(self, issue: str, repo: str) -> Ticket:
+   def __normalize_issue(self, issue, repo: str) -> Ticket:
       """
 Normalize an issue to a Ticket object.
 
@@ -922,7 +922,7 @@ Normalize an issue to a Ticket object.
 
 * ``issue``
 
-  / *Condition*: required / *Type*: str /
+  / *Condition*: required / *Type*: <class 'gitlab.v4.objects.issues.ProjectIssue'> /
 
   The issue data.
 
@@ -1249,9 +1249,15 @@ Normalize an issue to a Ticket object.
 
 * ``issue``
 
-  / *Condition*: required / *Type*: dict /
+  / *Condition*: required / *Type*: <class 'gitlab.v4.objects.issues.ProjectIssue'> /
 
   The issue data.
+
+* ``project``
+
+  / *Condition*: required / *Type*: str /
+
+  The gitlab project name.
 
 **Returns:**
 
@@ -1745,27 +1751,27 @@ Initialize the RTCTracker instance.
                             "rtc_cm:teamArea",
                             "rtc_cm:com.ibm.team.workitem.attribute.storyPointsNumeric"]
 
-   def __normalize_issue(self, issues: list) -> list[Ticket]:
+   def __normalize_issue(self, issue):
       """
-Normalize a list of issues to Ticket objects.
+Normalize a RTC issues to Ticket object.
 
 **Arguments:**
 
 * ``issues``
 
-  / *Condition*: required / *Type*: list /
+  / *Condition*: required / *Type*: dict /
 
-  A list of issues to normalize.
+  A issue to normalize.
 
 **Returns:**
 
-* ``tickets``
+* ``ticket``
 
-  / *Type*: list[Ticket] /
+  / *Type*: Ticket /
 
-  A list of Ticket objects created from the issue data.
+  A Ticket object created from the issue data.
       """
-      return [Ticket(self.TYPE,
+      return Ticket(self.TYPE,
                      issue['dcterms:identifier'],
                      issue['dcterms:title'],
                      issue['dcterms:description'],
@@ -1779,7 +1785,7 @@ Normalize a list of issues to Ticket objects.
                      type=issue['dcterms:type'],
                      children=self.__get_children_issues(issue),
                      parent=self.__get_parent_issue(issue)
-                     ) for issue in issues]
+                     )
 
    def __get_workitem_status(self, issue):
       if issue['dcterms:type'] == "Story":
@@ -1892,7 +1898,7 @@ Get a ticket by its ID.
   The ticket object.
       """
       ticket = self.tracker_client.get_workitem(id)
-      return self.__normalize_issue([ticket])[0]
+      return self.__normalize_issue(ticket)
 
    def get_tickets(self, **kwargs) -> list[Ticket]:
       """
