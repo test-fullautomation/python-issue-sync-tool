@@ -1717,7 +1717,7 @@ Create a new label in the Gitlab tracker.
   The project name.
       """
       gl_project = self.__get_project_client(repository)
-      list_existing_labels = gl_project.labels.list()
+      list_existing_labels = gl_project.labels.list(get_all=True)
       for item in list_existing_labels:
          if item.name == label_name:
             return
