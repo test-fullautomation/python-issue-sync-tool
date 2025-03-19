@@ -644,7 +644,7 @@ Normalize a Jira ticket to Ticket object.
    def __get_children_story(self, issue):
       # Current no information from issue object of Epic about children issue(s)
       # It requires another JQL to search the children issue(s): "Epic Link" = {issue.key}
-      return None
+      return []
 
    def __get_component(self, issue):
       if len(issue.raw['fields']['components']) > 0:
