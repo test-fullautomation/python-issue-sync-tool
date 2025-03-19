@@ -1290,7 +1290,7 @@ Normalize an issue to a Ticket object.
       # There is only the end-point for links: '/projects/{project_id}/issues/{issue_iid}/links'
       # But it is linked item, not sud/children or parent issue
       # There is Epic but it is for Premium and was deprecated in GitLab 17.0
-      return None
+      return []
 
    def __get_parent_issue(self, issue):
       # Currently no gitlab api to get sub/children task
