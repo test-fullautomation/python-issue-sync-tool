@@ -515,7 +515,7 @@ Defined sync attributes:
          if version_label:
             version_label_regex = re.compile(REGEX_VERSION_LABEL)
             # Remove existing version label in original ticket
-            updated_labels = [i for i in labels if not version_label_regex.match(i)]
+            updated_labels = [i for i in updated_labels if not version_label_regex.match(i)]
             Logger.log(f"Adding version label '{version_label}'", indent=6)
             org_tracker.create_label(version_label, repository=org_issue.component)
             updated_labels = updated_labels+[version_label]
