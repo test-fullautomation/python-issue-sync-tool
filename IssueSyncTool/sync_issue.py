@@ -498,13 +498,13 @@ Defined sync attributes:
 
    # Update original issue if status is not closed
    # Jira does not allow to add label for closed ticket
+   updated_labels = org_issue.labels
    if org_issue.status != Status.closed:
       Logger.log(f"Updating {org_issue.tracker.title()} issue {org_issue.id}:", indent=4)
 
       # remove existing sprint label include 'backlog'
-      labels=org_issue.labels
       sprint_label_regex = re.compile(REGEX_SPRINT_LABEL)
-      updated_labels = [i for i in labels if not sprint_label_regex.match(i) and i != 'backlog']
+      updated_labels = [i for i in updated_labels if not sprint_label_regex.match(i) and i != 'backlog']
       if dest_issue.version:
          Logger.log(f"Adding sprint label '{dest_issue.version}'", indent=6)
          org_tracker.create_label(dest_issue.version, repository=org_issue.component)
@@ -543,8 +543,18 @@ Defined sync attributes:
 
       des_title = process_title(org_issue.title, org_issue.component, component_mapping)
 
-      changing_attribute_param = dict()
+      # Update workitem relationship (children and parent)
+      changing_relationship_param = dict()
+      if dest_issue.parent != org_issue.parent:
+         changing_relationship_param['parent'] = org_issue.parent
+      if sorted(dest_issue.children) != sorted(org_issue.children):
+         changing_relationship_param['children'] = org_issue.children
 
+      Logger.log(f"Updating {', '.join([attr.title() for attr in changing_relationship_param.keys()])} relationship", indent=6)
+      des_tracker.update_ticket(dest_issue.id, **changing_relationship_param)
+
+      # Update workitem attributes
+      changing_attribute_param = dict()
       if dest_issue.type != org_issue.type:
          changing_attribute_param['type'] = org_issue.type
       if dest_issue.title != des_title:
@@ -558,17 +568,11 @@ Defined sync attributes:
          changing_attribute_param['priority'] = org_issue.priority
       if dest_issue.assignee != assignee_id:
          changing_attribute_param['assignee'] = assignee_id
-      if dest_issue.parent != org_issue.parent:
-         changing_attribute_param['parent'] = org_issue.parent
-      if sorted(dest_issue.children) != sorted(org_issue.children):
-         changing_attribute_param['children'] = org_issue.children
+      if org_issue.type == Ticket.Type.Epic:
+         changing_attribute_param['epic_statement'] = f"Original issue url: {org_issue.url}\n\n{org_issue.description}"
 
       Logger.log(f"Syncing {', '.join([attr.title() for attr in changing_attribute_param.keys()])}", indent=6)
       des_tracker.update_ticket(dest_issue.id, **changing_attribute_param)
-
-      # Update title of Epic again to avoid the title changed due to children update
-      if dest_issue.type == Ticket.Type.Epic and 'children' in changing_attribute_param:
-         des_tracker.update_ticket(dest_issue.id, title=des_title)
 
 def SyncIssue():
    """

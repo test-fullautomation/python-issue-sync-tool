@@ -80,7 +80,8 @@ Client for interacting with RTC (Rational Team Concert).
       "labels": "dcterms:subject",
       "children": "rtc_cm:com.ibm.team.workitem.linktype.parentworkitem.children",
       "parent": "rtc_cm:com.ibm.team.workitem.linktype.parentworkitem.parent",
-      "type": "rtc_cm:type"
+      "type": "rtc_cm:type",
+      "epic_statement": "rtc_ext:com.ibm.team.workitem.attribute.epicHypothesisStatement"
    }
    workflow_id = "com.ibm.team.apt.storyWorkflow"
    state_transition = {
