@@ -496,10 +496,12 @@ Defined sync attributes:
    elif "in work" in org_issue.labels:
       org_issue.status = Status.inProgress
 
-   # Update original issue if status is not closed
+   # Update original issue
    # Jira does not allow to add label for closed ticket
    updated_labels = org_issue.labels
-   if org_issue.status != Status.closed:
+   if org_issue.status == Status.closed and org_tracker.TYPE == "jira":
+      sync_only_status = True
+   else:
       Logger.log(f"Updating {org_issue.tracker.title()} issue {org_issue.id}:", indent=4)
 
       # remove existing sprint label include 'backlog'
@@ -523,8 +525,7 @@ Defined sync attributes:
          Logger.log_warning(f"Adding 'backlog' label for unplanned issue", indent=6)
          updated_labels = updated_labels+['backlog']
       org_issue.update(labels=updated_labels)
-   else:
-      sync_only_status = True
+
 
    # Update destination issue
    Logger.log(f"Updating {dest_issue.tracker.title()} issue {dest_issue.id}:", indent=4)
@@ -641,9 +642,9 @@ Main function to sync issues between tracking systems.
             # update original issue on source tracker with planing from destination
             try:
                dest_issue = des_tracker.get_ticket(issue.destination_id)
-            except Exception:
+            except Exception as reason:
                csv_content.append(f"{issue_counter}, {issue.tracker.title()} {issue.id}, {issue.url}, {config['destination'][0]} {issue.destination_id}, not found\n")
-               Logger.log_warning(f"{config['destination'][0].title()} issue {issue.destination_id} cannot be found.", indent=4)
+               Logger.log_warning(f"{config['destination'][0].title()} issue {issue.destination_id} cannot be found. Reason: {reason}", indent=4)
                error_counter += 1
                continue
 

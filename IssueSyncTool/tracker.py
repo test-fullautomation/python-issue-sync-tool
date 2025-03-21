@@ -28,12 +28,14 @@ Class representing the status of issues in different tracker systems.
       "rtc": {
          "New": "Open",
          "In Development": "In Progress",
+         "Ready for Acceptance": "Ready for Acceptance",
          "Done": "Closed"
       }
    }
 
    open = "Open"
    inProgress = "In Progress"
+   readyForAcceptance = "Ready for Acceptance"
    closed = "Closed"
 
    @staticmethod
@@ -64,10 +66,10 @@ Normalize the issue status to a standard format.
   The normalized status of the issue.
       """
       if tracker_type not in Status.STATUS_MAPPING.keys():
-         raise ValueError(f"Unsupported tracker type {tracker_type}")
+         raise ValueError(f"Unsupported tracker type '{tracker_type}'")
 
       if native_status not in Status.STATUS_MAPPING[tracker_type].keys():
-         raise ValueError(f"Unsupported status {native_status} for {tracker_type.title()} issue")
+         raise ValueError(f"Unsupported status '{native_status}' for {tracker_type.title()} issue")
 
       return Status.STATUS_MAPPING[tracker_type][native_status]
 
