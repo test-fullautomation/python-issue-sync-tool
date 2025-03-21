@@ -16,6 +16,7 @@
       {contributors}
       {children}
       {parent}
+      {epic_statement}
       <oslc_cmx:priority rdf:resource="{priority}"/>
       <dcterms:description rdf:parseType="Literal">{description}</dcterms:description>
       <oslc_cm:status rdf:datatype="http://www.w3.org/2001/XMLSchema#string">{state}</oslc_cm:status>
