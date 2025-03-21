@@ -931,6 +931,9 @@ Create a new work item.
 
       title = escape_xml_content(title)
       description = escape_xml_content(description)
+      epic_statement= ""
+      if type.lower() == "epic":
+         epic_statement = f"<{self.xml_attr_mapping['epic_statement']}>{description}</{self.xml_attr_mapping['epic_statement']}>"
 
       # Verify RTC workitem type
       workitem_type_url = ""
@@ -964,7 +967,7 @@ Create a new work item.
 
       # Get complexity - story point information for story workitem
       complexity = ""
-      if type == "story":
+      if type.lower() == "story":
          self.get_complexity_link(story_point)
          complexity = f"<{self.xml_attr_mapping['story_point']} rdf:resource=\"{hostname}/ccm/oslc/enumerations/{project_id}/complexity/{story_point}\"/>"
 
