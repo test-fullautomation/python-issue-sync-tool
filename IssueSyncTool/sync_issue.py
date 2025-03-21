@@ -5,7 +5,7 @@ import sys
 import os
 import re
 from .version import VERSION, VERSION_DATE
-from .utils import CONFIG_SCHEMA, REGEX_SPRINT_LABEL, REGEX_VERSION_LABEL
+from .utils import CONFIG_SCHEMA, REGEX_SPRINT_LABEL, REGEX_VERSION_LABEL, REGEX_PRIORITY_LABEL
 from argparse import ArgumentParser
 from jsonschema import validate
 from .tracker import Tracker, Status, Ticket
@@ -497,6 +497,7 @@ Defined sync attributes:
       org_issue.status = Status.inProgress
 
    # Update original issue
+   org_update_param = dict()
    # Jira does not allow to add label for closed ticket
    updated_labels = org_issue.labels
    if org_issue.status == Status.closed and org_tracker.TYPE == "jira":
@@ -524,7 +525,22 @@ Defined sync attributes:
       else:
          Logger.log_warning(f"Adding 'backlog' label for unplanned issue", indent=6)
          updated_labels = updated_labels+['backlog']
-      org_issue.update(labels=updated_labels)
+
+      # sync back priority from destination if it is set
+      if dest_issue.priority:
+
+         if org_tracker.TYPE in ["github", "gitlab"]:
+            # add priority label for github and gitlab tracker
+            priority_label_regex = re.compile(REGEX_PRIORITY_LABEL)
+            # Remove existing priority label in original ticket
+            updated_labels = [i for i in updated_labels if not priority_label_regex.match(i)]
+            updated_labels = updated_labels+[f'prio {dest_issue.priority}']
+         elif org_tracker.TYPE == "jira":
+            # add priority field for jira tracker
+            org_update_param['priority'] = {"name": org_tracker.get_priority_name_from_level(dest_issue.priority)}
+
+      org_update_param['labels'] = updated_labels
+      org_issue.update(**org_update_param)
 
 
    # Update destination issue
@@ -565,7 +581,7 @@ Defined sync attributes:
          changing_attribute_param['labels'] = updated_labels
       if dest_issue.story_point != org_issue.story_point:
          changing_attribute_param['story_point'] = org_issue.story_point
-      if dest_issue.priority != org_issue.priority:
+      if dest_issue.priority is None and dest_issue.priority != org_issue.priority:
          changing_attribute_param['priority'] = org_issue.priority
       if dest_issue.assignee != assignee_id:
          changing_attribute_param['assignee'] = assignee_id

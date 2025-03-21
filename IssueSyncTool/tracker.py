@@ -4,6 +4,7 @@ from jira import JIRA
 from gitlab import Gitlab
 from abc import ABC, abstractmethod
 from typing import Union, Optional, Callable
+from .utils import REGEX_PRIORITY_LABEL
 import re
 
 class Status:
@@ -515,7 +516,7 @@ Example of priority labels: `prio 1`, `prio 2`, ...
   The priority extracted from the labels.
       """
       for label in labels:
-         priority_label = re.match(r'prio\s*(\d+)', label)
+         priority_label = re.match(REGEX_PRIORITY_LABEL, label)
          if priority_label:
             # Limit priority level to 5 (lowest)
             if int(priority_label[1]) > 5:
@@ -840,10 +841,16 @@ Get the priority of an issue.
             # return priority level as int base on its name
             for level, names in self.PRIORITY_LEVEL.items():
                if issue.fields.priority.name in names:
-                  return level
+                  return int(level)
          return 5 # return level 5 if priority is set but not match any definition level
 
       return None
+
+   def get_priority_name_from_level(self, level: int) -> str:
+      if level in range(1,6):
+         return self.PRIORITY_LEVEL[str(level)][0]
+      else:
+         raise Exception(f"Priority level {level} is not supported")
 
    def get_story_point(self, issue) -> int:
       """
@@ -1950,7 +1957,7 @@ Get the priority attribute of an issue.
             # Try to get priority as integer value
             matched_priority = re.match(r"^(\d)(\s*-\s8\w+)?", priority)
             if matched_priority:
-               priority = matched_priority.group(1)
+               priority = int(matched_priority.group(1))
             else:
                priority = None # Unassigned value => not set
             return priority

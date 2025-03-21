@@ -242,3 +242,5 @@ CONFIG_SCHEMA = {
 REGEX_SPRINT_LABEL = r"PI.*"
 
 REGEX_VERSION_LABEL = r"^\d+\.\d+\.\d+$"
+
+REGEX_PRIORITY_LABEL = r"prio\s*(\d+)"
