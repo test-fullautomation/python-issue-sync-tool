@@ -742,9 +742,10 @@ Get tickets from the Jira tracker.
       for key, val in kwargs.items():
          if val:
             if isinstance(val, list):
-               jql.append(f"{key} in ({','.join(val)})")
+               list_val = [f"'{v}'" for v in val]
+               jql.append(f"{key} in ({','.join(list_val)})")
             elif isinstance(val, str):
-               jql.append(f"{key} = {val}")
+               jql.append(f"{key} = '{val}'")
 
       issues = self.tracker_client.search_issues(" AND ".join(jql))
       for issue in issues:
