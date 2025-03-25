@@ -4,7 +4,7 @@ from jira import JIRA
 from gitlab import Gitlab
 from abc import ABC, abstractmethod
 from typing import Union, Optional, Callable
-from .utils import REGEX_PRIORITY_LABEL
+from .utils import REGEX_PRIORITY_LABEL, REGEX_STORY_POINT_LABEL
 import re
 
 class Status:
@@ -290,23 +290,37 @@ Update issue on tracker with following supported attributes:
   A dictionary of attributes to update the ticket with.
       """
       if self.issue_client:
-         if self.tracker == "gitlab":
-            self._update_gitlab_issue(**kwargs)
-         elif self.tracker == "github":
-            self._update_github_issue(**kwargs)
-         elif self.tracker == "jira":
-            self._update_jira_issue(**kwargs)
-         elif self.tracker == 'rtc':
-            self._update_rtc_issue(**kwargs)
+         try:
+            if self.tracker == "gitlab":
+               self._update_gitlab_issue(**kwargs)
+            elif self.tracker == "github":
+               self._update_github_issue(**kwargs)
+            elif self.tracker == "jira":
+               self._update_jira_issue(**kwargs)
+            elif self.tracker == 'rtc':
+               self._update_rtc_issue(**kwargs)
+         except Exception as reason:
+            raise Exception(f"Failed to update {self.tracker.title()} issue {self.id}. Reason: {reason}")
       else:
          raise NotImplementedError(f"No implementation to update {self.tracker.title()} issue.")
 
+
    def _update_gitlab_issue(self, **kwargs):
       for attr, val in kwargs.items():
-         if hasattr(self.issue_client, attr):
-            setattr(self.issue_client, attr, val)
+         if attr == "assignee":
+            if val:
+               try:
+                  assignee_id = self.issue_client.manager.gitlab.users.list(username=val)[0].id
+               except Exception as reason:
+                  raise Exception(f"Could not found user name '{val}' in gitlab project. Reason: {reason}")
+               self.issue_client.assignee_ids = [assignee_id]
+            else:
+               self.issue_client.assignee_ids = []
          else:
-            raise AttributeError(f"'{type(self.issue_client).__name__}' object has no attribute '{attr}'")
+            if hasattr(self.issue_client, attr):
+               setattr(self.issue_client, attr, val)
+            else:
+               raise AttributeError(f"'{type(self.issue_client).__name__}' object has no attribute '{attr}'")
       self.issue_client.save()
 
    def _update_github_issue(self, **kwargs):
@@ -548,7 +562,7 @@ Example of story point labels: `1 pts`, `2 pts`, ...
       """
       for label in labels:
          # story_point_label = re.match(r'(\d+)\s*point(s)?', label)
-         story_point_label = re.match(r'(\d+)\s*pts', label)
+         story_point_label = re.match(REGEX_STORY_POINT_LABEL, label)
          if story_point_label:
             return int(story_point_label[1])
 
@@ -742,9 +756,10 @@ Get tickets from the Jira tracker.
       for key, val in kwargs.items():
          if val:
             if isinstance(val, list):
-               jql.append(f"{key} in ({','.join(val)})")
+               list_val = [f"'{v}'" for v in val]
+               jql.append(f"{key} in ({','.join(list_val)})")
             elif isinstance(val, str):
-               jql.append(f"{key} = {val}")
+               jql.append(f"{key} = '{val}'")
 
       issues = self.tracker_client.search_issues(" AND ".join(jql))
       for issue in issues:
@@ -1294,6 +1309,13 @@ Normalize an issue to a Ticket object.
          parent=self.__get_parent_issue(issue)
       )
 
+   def get_user_id(self, username: str):
+      try:
+         user = self.tracker_client.users.list(username=username)[0]
+         return user.id
+      except:
+         raise Exception(f"Could not found given user name '{username}' on gitlab.")
+
    def __get_sub_issues(self, issue):
       # Currently no gitlab api to get sub/children task
       # There is only the end-point for links: '/projects/{project_id}/issues/{issue_iid}/links'
@@ -1839,7 +1861,8 @@ Normalize a RTC issues to Ticket object.
 
    def connect(self, project: str, hostname: str, username: str = None,
                token: str = None, file_against: str = None,
-               workflow_id: str = None, state_transition: dict = None):
+               workflow_id: str = None, state_transition: dict = None,
+               project_scope: str = None):
       """
 Connect to the RTC tracker.
 
@@ -1880,11 +1903,30 @@ Connect to the RTC tracker.
   / *Condition*: optional / *Type*: str / *Default*: None /
 
   The file against which to authenticate.
+
+* ``workflow_id``
+
+  / *Condition*: optional / *Type*: str / *Default*: None /
+
+  The rtc workflow id which is current used.
+
+* ``state_transition``
+
+  / *Condition*: optional / *Type*: dict / *Default*: None /
+
+  The actions and according state transitions which is defined in RTC.
+
+* ``project_scope``
+
+  / *Condition*: optional / *Type*: str / *Default*: None /
+
+  The project scope name to set as default for new rtc work item.
       """
       self.project = project
       self.hostname = hostname
       self.tracker_client = RTCClient(hostname, project, username, token,
-                                      file_against, workflow_id, state_transition)
+                                      file_against, workflow_id, state_transition,
+                                      project_scope)
 
    def get_ticket(self, id: Union[str, int]) -> Ticket:
       """

@@ -89,6 +89,7 @@ CONFIG_SCHEMA = {
                   "username": {"type": "string"},
                   "token": {"type": "string"},
                   "file_against": {"type": "string"},
+                  "project_scope": {"type": "string"},
                   "workflow_id": {"type": "string"},
                   "state_transition": {"type": "object"},
                   "condition": {
@@ -244,3 +245,5 @@ REGEX_SPRINT_LABEL = r"PI.*"
 REGEX_VERSION_LABEL = r"^\d+\.\d+\.\d+$"
 
 REGEX_PRIORITY_LABEL = r"prio\s*(\d+)"
+
+REGEX_STORY_POINT_LABEL = r"(\d+)\s*pts"

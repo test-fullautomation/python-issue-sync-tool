@@ -81,7 +81,8 @@ Client for interacting with RTC (Rational Team Concert).
       "children": "rtc_cm:com.ibm.team.workitem.linktype.parentworkitem.children",
       "parent": "rtc_cm:com.ibm.team.workitem.linktype.parentworkitem.parent",
       "type": "rtc_cm:type",
-      "epic_statement": "rtc_ext:com.ibm.team.workitem.attribute.epicHypothesisStatement"
+      "epic_statement": "rtc_ext:com.ibm.team.workitem.attribute.epicHypothesisStatement",
+      "project_scope": "rtc_ext:project_scope"
    }
    workflow_id = "com.ibm.team.apt.storyWorkflow"
    state_transition = {
@@ -94,7 +95,7 @@ Client for interacting with RTC (Rational Team Concert).
    }
 
    def __init__(self, hostname, project, username, token, file_against=None,
-                workflow_id=None, state_transition=None):
+                workflow_id=None, state_transition=None, project_scope=None):
       """
 Initialize the RTCClient instance.
 
@@ -137,6 +138,7 @@ Initialize the RTCClient instance.
          "id": ""
       }
       self.file_against = file_against
+      self.project_scope = project_scope
       self.session = requests.Session()
       self.headers = {
          "Content-Type": "application/xml",
@@ -151,11 +153,82 @@ Initialize the RTCClient instance.
       self.defined_complexity = self.__get_complexity_cache()
       self.defined_priority = self.__get_priority()
       self.defined_workitem_type = self.__get_workitem_type()
+      self.defined_project_scope = self.__get_project_scope()
       if workflow_id:
          self.workflow_id = workflow_id
       if state_transition:
          self.state_transition = state_transition
       self.state_transition_graph = None
+
+   def __get_project_scope(self, project_id=None):
+      """
+Get the defined project scope for the specified project.
+
+**Arguments:**
+
+* ``project_id``
+
+   / *Condition*: optional / *Type*: str / *Default*: None /
+
+   The project ID.
+
+**Returns:**
+
+* ``dict_project_scope``
+
+   / *Type*: dict /
+
+   A dictionary of project scopes.
+      """
+      if not project_id:
+         if not self.project['id']:
+            self.__get_projectID()
+         project_id = self.project['id']
+
+      url = f"{self.hostname}/ccm/oslc/enumerations/{project_id}/project_scope"
+
+      res = self.session.get(url, allow_redirects=True, verify=False)
+
+      if res.status_code != 200:
+         raise Exception(f"Failed to request to get project_scope, url: '{url}'")
+
+      dict_project_scope = dict()
+      list_project_scope = res.json()['oslc:results']
+      for item in list_project_scope:
+         project_scope = item['dcterms:title'].lower()
+         dict_project_scope[project_scope] = item['rdf:about']
+
+      return dict_project_scope
+
+   def get_project_scope_url(self, project_scope):
+      """
+Get the project scope link.
+
+**Arguments:**
+
+* ``project_scope``
+
+  / *Condition*: required / *Type*: str /
+
+  The project_scope name.
+
+**Returns:**
+
+* ``project_scope_url``
+
+  / *Type*: str /
+
+  The link to given project_scope name.
+      """
+      if not project_scope:
+         if 'unassigned' in self.defined_project_scope:
+            return self.defined_project_scope['unassigned']
+         else:
+            return ""
+
+      if project_scope.lower() not in self.defined_project_scope.keys():
+         raise Exception(f"Given Project Scope value '{project_scope}' is not valid, it should be in {[item for item in self.defined_project_scope.keys()]}")
+      return self.defined_project_scope[project_scope.lower()]
 
    def __get_workitem_type(self, project_id=None):
       """
@@ -404,7 +477,7 @@ Get the priority link.
   The priority link for the specified value.
       """
       if not priority:
-         if 'Unassigned' in  self.defined_priority:
+         if 'Unassigned' in self.defined_priority:
             return self.defined_priority['Unassigned']
          else:
             return ""
@@ -862,7 +935,7 @@ Update the state of a work item by performing the specified action.
 
    def create_workitem(self, title, description, story_point=0, file_against=None,
                        assignee=None, priority=None, project_id=None,
-                       type="Story", state = "New", **kwargs):
+                       project_scope=None, type="Story", state = "New", **kwargs):
       """
 Create a new work item.
 
@@ -910,6 +983,24 @@ Create a new work item.
 
   The project ID.
 
+* ``project_scope``
+
+  / *Condition*: optional / *Type*: str / *Default*: None /
+
+  The project scope name.
+
+* ``type``
+
+  / *Condition*: optional / *Type*: str / *Default*: "Story" /
+
+  The RTC work item type.
+
+* ``state``
+
+  / *Condition*: optional / *Type*: str / *Default*: "New" /
+
+  The RTC work item status.
+
 * ``kwargs``
 
   / *Condition*: optional / *Type*: dict / *Default*: None /
@@ -946,6 +1037,23 @@ Create a new work item.
       contributors = ""
       if assignee:
          contributors = f"<{self.xml_attr_mapping['assignee']} rdf:resource=\"{hostname}/jts/users/{assignee}\" />"
+
+      # Get project_scope information
+      project_scope_url = ""
+      if project_scope:
+         project_scope_url = self.get_project_scope_url(project_scope)
+      elif self.project_scope:
+         project_scope_url = self.get_project_scope_url(self.project_scope)
+      else:
+         # Try to get link to Unassigned project_scope if not specified
+         try:
+            project_scope_url = self.get_project_scope_url("unassigned")
+         except:
+            project_scope_url = ""
+      if project_scope_url:
+         project_scope = f"<{self.xml_attr_mapping['project_scope']} rdf:resource=\"{project_scope_url}\" />"
+      else:
+         project_scope = ""
 
       # Get priority information
       if priority:
