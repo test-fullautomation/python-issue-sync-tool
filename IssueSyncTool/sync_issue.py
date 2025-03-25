@@ -5,7 +5,7 @@ import sys
 import os
 import re
 from .version import VERSION, VERSION_DATE
-from .utils import CONFIG_SCHEMA, REGEX_SPRINT_LABEL, REGEX_VERSION_LABEL, REGEX_PRIORITY_LABEL
+from .utils import CONFIG_SCHEMA, REGEX_SPRINT_LABEL, REGEX_VERSION_LABEL, REGEX_PRIORITY_LABEL, REGEX_STORY_POINT_LABEL
 from argparse import ArgumentParser
 from jsonschema import validate
 from .tracker import Tracker, Status, Ticket
@@ -547,9 +547,20 @@ Defined sync attributes:
          except Exception as reason:
             Logger.log_error(f"Failed to sync back assignee information. Reason: {reason}", indent=6)
 
+      # sync back story point from destination if it is set
+      if dest_issue.story_point:
+         # add story_point label for github and gitlab tracker
+         story_point_label_regex = re.compile(REGEX_STORY_POINT_LABEL)
+         # Remove existing story_point label in original ticket
+         updated_labels = [i for i in updated_labels if not story_point_label_regex.match(i)]
+         if org_tracker.TYPE in ["github", "gitlab"]:
+            updated_labels = updated_labels+[f'{dest_issue.story_point} pts']
+         elif org_tracker.TYPE == "jira":
+            # jira label does not allow space
+            updated_labels = updated_labels+[f'{dest_issue.story_point}pts']
+
       org_update_param['labels'] = updated_labels
       org_issue.update(**org_update_param)
-
 
    # Update destination issue
    Logger.log(f"Updating {dest_issue.tracker.title()} issue {dest_issue.id}:", indent=4)
@@ -587,7 +598,7 @@ Defined sync attributes:
       changing_attribute_param['description'] = f"Original issue url: {org_issue.url}\n\n{org_issue.description}"
       if dest_issue.labels != updated_labels:
          changing_attribute_param['labels'] = updated_labels
-      if dest_issue.story_point != org_issue.story_point:
+      if not dest_issue.story_point and dest_issue.story_point != org_issue.story_point:
          changing_attribute_param['story_point'] = org_issue.story_point
       if dest_issue.priority is None and dest_issue.priority != org_issue.priority:
          changing_attribute_param['priority'] = org_issue.priority

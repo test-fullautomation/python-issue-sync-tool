@@ -4,7 +4,7 @@ from jira import JIRA
 from gitlab import Gitlab
 from abc import ABC, abstractmethod
 from typing import Union, Optional, Callable
-from .utils import REGEX_PRIORITY_LABEL
+from .utils import REGEX_PRIORITY_LABEL, REGEX_STORY_POINT_LABEL
 import re
 
 class Status:
@@ -326,7 +326,6 @@ Update issue on tracker with following supported attributes:
    def _update_github_issue(self, **kwargs):
       self.issue_client.edit(**kwargs)
 
-
    def _update_jira_issue(self, **kwargs):
       if 'assignee' in kwargs:
          assignee_val = {"name": kwargs['assignee']}
@@ -563,7 +562,7 @@ Example of story point labels: `1 pts`, `2 pts`, ...
       """
       for label in labels:
          # story_point_label = re.match(r'(\d+)\s*point(s)?', label)
-         story_point_label = re.match(r'(\d+)\s*pts', label)
+         story_point_label = re.match(REGEX_STORY_POINT_LABEL, label)
          if story_point_label:
             return int(story_point_label[1])
 
