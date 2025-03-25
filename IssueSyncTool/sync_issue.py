@@ -430,7 +430,7 @@ title with destination issue's id.
    Logger.log(f"Created new {des_tracker.TYPE.title()} issue with ID {res_id}", indent=4)
    return res_id
 
-def process_sync_issues(org_issue, org_tracker, dest_issue, des_tracker, assignee,
+def process_sync_issues(org_issue, org_tracker, dest_issue, des_tracker, assignee, user_management,
                         component_mapping=None, sprint_version_mapping=None,
                         sync_only_status=False):
    """
@@ -528,7 +528,6 @@ Defined sync attributes:
 
       # sync back priority from destination if it is set
       if dest_issue.priority:
-
          if org_tracker.TYPE in ["github", "gitlab"]:
             # add priority label for github and gitlab tracker
             priority_label_regex = re.compile(REGEX_PRIORITY_LABEL)
@@ -538,6 +537,15 @@ Defined sync attributes:
          elif org_tracker.TYPE == "jira":
             # add priority field for jira tracker
             org_update_param['priority'] = {"name": org_tracker.get_priority_name_from_level(dest_issue.priority)}
+
+      # sync back assignee from destination if it is set
+      if dest_issue.assignee and dest_issue.assignee.lower() != "unassigned":
+         try:
+            des_assignee = user_management.get_user(dest_issue.assignee.lower(), des_tracker.TYPE)
+            assignee_id = des_assignee.id[org_tracker.TYPE]
+            org_update_param['assignee'] = assignee_id
+         except Exception as reason:
+            Logger.log_error(f"Failed to sync back assignee information. Reason: {reason}", indent=6)
 
       org_update_param['labels'] = updated_labels
       org_issue.update(**org_update_param)
@@ -583,7 +591,7 @@ Defined sync attributes:
          changing_attribute_param['story_point'] = org_issue.story_point
       if dest_issue.priority is None and dest_issue.priority != org_issue.priority:
          changing_attribute_param['priority'] = org_issue.priority
-      if dest_issue.assignee != assignee_id:
+      if dest_issue.assignee.lower() == "unassigned" and dest_issue.assignee != assignee_id:
          changing_attribute_param['assignee'] = assignee_id
       if org_issue.type == Ticket.Type.Epic:
          # Force to update title for Epic work item
@@ -682,7 +690,7 @@ Main function to sync issues between tracking systems.
                if not args.dryrun:
                   try:
                      issue = update_issue_relationship(tracker, issue, des_tracker.TYPE)
-                     process_sync_issues(issue, tracker, dest_issue, des_tracker, assignee, component_mapping, sprint_version_mapping, args.status_only)
+                     process_sync_issues(issue, tracker, dest_issue, des_tracker, assignee, user_management, component_mapping, sprint_version_mapping, args.status_only)
                      sync_issue += 1
                   except Exception as reason:
                      Logger.log_error(f"Cannot sync {dest_issue.tracker.title()} issue {dest_issue.id}. {reason}", indent=4)

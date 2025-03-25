@@ -290,27 +290,42 @@ Update issue on tracker with following supported attributes:
   A dictionary of attributes to update the ticket with.
       """
       if self.issue_client:
-         if self.tracker == "gitlab":
-            self._update_gitlab_issue(**kwargs)
-         elif self.tracker == "github":
-            self._update_github_issue(**kwargs)
-         elif self.tracker == "jira":
-            self._update_jira_issue(**kwargs)
-         elif self.tracker == 'rtc':
-            self._update_rtc_issue(**kwargs)
+         try:
+            if self.tracker == "gitlab":
+               self._update_gitlab_issue(**kwargs)
+            elif self.tracker == "github":
+               self._update_github_issue(**kwargs)
+            elif self.tracker == "jira":
+               self._update_jira_issue(**kwargs)
+            elif self.tracker == 'rtc':
+               self._update_rtc_issue(**kwargs)
+         except Exception as reason:
+            raise Exception(f"Failed to update {self.tracker.title()} issue {self.id}. Reason: {reason}")
       else:
          raise NotImplementedError(f"No implementation to update {self.tracker.title()} issue.")
 
+
    def _update_gitlab_issue(self, **kwargs):
       for attr, val in kwargs.items():
-         if hasattr(self.issue_client, attr):
-            setattr(self.issue_client, attr, val)
+         if attr == "assignee":
+            if val:
+               try:
+                  assignee_id = self.issue_client.manager.gitlab.users.list(username=val)[0].id
+               except Exception as reason:
+                  raise Exception(f"Could not found user name '{val}' in gitlab project. Reason: {reason}")
+               self.issue_client.assignee_ids = [assignee_id]
+            else:
+               self.issue_client.assignee_ids = []
          else:
-            raise AttributeError(f"'{type(self.issue_client).__name__}' object has no attribute '{attr}'")
+            if hasattr(self.issue_client, attr):
+               setattr(self.issue_client, attr, val)
+            else:
+               raise AttributeError(f"'{type(self.issue_client).__name__}' object has no attribute '{attr}'")
       self.issue_client.save()
 
    def _update_github_issue(self, **kwargs):
       self.issue_client.edit(**kwargs)
+
 
    def _update_jira_issue(self, **kwargs):
       if 'assignee' in kwargs:
@@ -1294,6 +1309,13 @@ Normalize an issue to a Ticket object.
          children=self.__get_sub_issues(issue),
          parent=self.__get_parent_issue(issue)
       )
+
+   def get_user_id(self, username: str):
+      try:
+         user = self.tracker_client.users.list(username=username)[0]
+         return user.id
+      except:
+         raise Exception(f"Could not found given user name '{username}' on gitlab.")
 
    def __get_sub_issues(self, issue):
       # Currently no gitlab api to get sub/children task
