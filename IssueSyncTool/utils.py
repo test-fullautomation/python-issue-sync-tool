@@ -89,6 +89,7 @@ CONFIG_SCHEMA = {
                   "username": {"type": "string"},
                   "token": {"type": "string"},
                   "file_against": {"type": "string"},
+                  "project_scope": {"type": "string"},
                   "workflow_id": {"type": "string"},
                   "state_transition": {"type": "object"},
                   "condition": {

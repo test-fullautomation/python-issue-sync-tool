@@ -1840,7 +1840,8 @@ Normalize a RTC issues to Ticket object.
 
    def connect(self, project: str, hostname: str, username: str = None,
                token: str = None, file_against: str = None,
-               workflow_id: str = None, state_transition: dict = None):
+               workflow_id: str = None, state_transition: dict = None,
+               project_scope: str = None):
       """
 Connect to the RTC tracker.
 
@@ -1881,11 +1882,30 @@ Connect to the RTC tracker.
   / *Condition*: optional / *Type*: str / *Default*: None /
 
   The file against which to authenticate.
+
+* ``workflow_id``
+
+  / *Condition*: optional / *Type*: str / *Default*: None /
+
+  The rtc workflow id which is current used.
+
+* ``state_transition``
+
+  / *Condition*: optional / *Type*: dict / *Default*: None /
+
+  The actions and according state transitions which is defined in RTC.
+
+* ``project_scope``
+
+  / *Condition*: optional / *Type*: str / *Default*: None /
+
+  The project scope name to set as default for new rtc work item.
       """
       self.project = project
       self.hostname = hostname
       self.tracker_client = RTCClient(hostname, project, username, token,
-                                      file_against, workflow_id, state_transition)
+                                      file_against, workflow_id, state_transition,
+                                      project_scope)
 
    def get_ticket(self, id: Union[str, int]) -> Ticket:
       """
