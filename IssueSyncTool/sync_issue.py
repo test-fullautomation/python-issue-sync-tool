@@ -586,6 +586,8 @@ Defined sync attributes:
       if dest_issue.assignee != assignee_id:
          changing_attribute_param['assignee'] = assignee_id
       if org_issue.type == Ticket.Type.Epic:
+         # Force to update title for Epic work item
+         changing_attribute_param['title'] = des_title
          changing_attribute_param['epic_statement'] = f"Original issue url: {org_issue.url}\n\n{org_issue.description}"
 
       Logger.log(f"Syncing {', '.join([attr.title() for attr in changing_attribute_param.keys()])}", indent=6)
