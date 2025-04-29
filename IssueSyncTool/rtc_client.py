@@ -82,7 +82,8 @@ Client for interacting with RTC (Rational Team Concert).
       "parent": "rtc_cm:com.ibm.team.workitem.linktype.parentworkitem.parent",
       "type": "rtc_cm:type",
       "epic_statement": "rtc_ext:com.ibm.team.workitem.attribute.epicHypothesisStatement",
-      "project_scope": "rtc_ext:project_scope"
+      "project_scope": "rtc_ext:project_scope",
+      "planned_for": "rtc_cm:plannedFor"
    }
    workflow_id = "com.ibm.team.apt.storyWorkflow"
    state_transition = {
@@ -95,7 +96,8 @@ Client for interacting with RTC (Rational Team Concert).
    }
 
    def __init__(self, hostname, project, username, token, file_against=None,
-                workflow_id=None, state_transition=None, project_scope=None):
+                workflow_id=None, state_transition=None, project_scope=None,
+                planned_for=None):
       """
 Initialize the RTCClient instance.
 
@@ -139,6 +141,7 @@ Initialize the RTCClient instance.
       }
       self.file_against = file_against
       self.project_scope = project_scope
+      self.planned_for = planned_for
       self.session = requests.Session()
       self.headers = {
          "Content-Type": "application/xml",
@@ -154,11 +157,65 @@ Initialize the RTCClient instance.
       self.defined_priority = self.__get_priority()
       self.defined_workitem_type = self.__get_workitem_type()
       self.defined_project_scope = self.__get_project_scope()
+      # self.defined_sprints = self.__get_defined_planned_for()
       if workflow_id:
          self.workflow_id = workflow_id
       if state_transition:
          self.state_transition = state_transition
       self.state_transition_graph = None
+
+   def __get_request(self, url, resource_type, custom_headers=None, exception_on_failure=True):
+      get_kwargs = {
+         "allow_redirects": True,
+         "verify": False
+      }
+      if custom_headers:
+         get_kwargs['headers'] = custom_headers
+
+      res = self.session.get(url, **get_kwargs)
+
+      if res.status_code != 200 and exception_on_failure:
+         raise Exception(f"Failed to request to get '{resource_type}', url: '{url}'")
+
+      return res
+
+   def __retrieve_planned_for_results(self, url):
+      return_data = dict()
+      res = self.session.get(url, allow_redirects=True, verify=False)
+
+      if res.status_code != 200:
+         raise Exception(f"Failed to request to get Planned_For information, url: '{url}'")
+
+      try:
+         res_json = res.json()
+         for item in res_json["oslc:results"]:
+            return_data[item["dcterms:title"]] = item["rdf:about"]
+      except Exception as reason:
+         raise Exception(f"Error when parsing Planned_For response. Reason: {reason}")
+
+      next_page_url = res_json.get('oslc:responseInfo', {}).get('oslc:nextPage')
+      if next_page_url:
+         return_data.update(self.__retrieve_planned_for_results(next_page_url))
+
+      return return_data
+
+   def __get_defined_planned_for(self):
+      url = f"{self.hostname}/ccm/oslc/iterations?oslc.select=dcterms:identifier,dcterms:title"
+      return self.__retrieve_planned_for_results(url)
+
+   def get_planned_for_url(self, name):
+      if name:
+         url = f"{self.hostname}/ccm/oslc/iterations?oslc.where=dcterms:title=\"{name}\"&oslc.select=dcterms:identifier,dcterms:title"
+         print(url)
+         res = self.__get_request(url, "Planned For")
+         try:
+            res_json = res.json()
+            print(res_json)
+            return res_json['oslc:results'][0]["rdf:about"]
+         except:
+            raise Exception(f"Failed to get 'Planned For' url from response {res_json}")
+
+      return None
 
    def __get_project_scope(self, project_id=None):
       """
@@ -846,6 +903,16 @@ Update a work item with the specified attributes.
                      oChangeRequest.append(oChild)
             elif attr == "title":
                oAttr.text = val
+            elif attr == "planned_for":
+               if val:
+                  if oAttr is not None:
+                     oAttr.set("{%s}resource" % nsmap['rdf'], self.get_planned_for_url(val))
+                  else:
+                     oChangeRequest = oWorkItem.find(f"oslc_cm:ChangeRequest", nsmap)
+                     namespace, xml_node = self.xml_attr_mapping['planned_for'].split(":")
+                     oPlannedFor = etree.Element(f"{{{nsmap[namespace]}}}{xml_node}", nsmap=nsmap)
+                     oPlannedFor.set("{%s}resource" % nsmap['rdf'], self.get_planned_for_url(val))
+                     oChangeRequest.append(oPlannedFor)
             else:
                if oAttr is not None:
                   oAttr.clear()
@@ -935,7 +1002,8 @@ Update the state of a work item by performing the specified action.
 
    def create_workitem(self, title, description, story_point=0, file_against=None,
                        assignee=None, priority=None, project_id=None,
-                       project_scope=None, type="Story", state = "New", **kwargs):
+                       project_scope=None, planned_for=None,
+                       type="Story", state = "New", **kwargs):
       """
 Create a new work item.
 
@@ -1054,6 +1122,18 @@ Create a new work item.
          project_scope = f"<{self.xml_attr_mapping['project_scope']} rdf:resource=\"{project_scope_url}\" />"
       else:
          project_scope = ""
+
+      # Get planned_for information
+      planned_for_url = ""
+      if planned_for:
+         planned_for_url = self.get_planned_for_url(planned_for)
+      else:
+         planned_for_url = self.get_planned_for_url(self.planned_for)
+
+      if planned_for_url:
+         planned_for = f"<{self.xml_attr_mapping['planned_for']} rdf:resource=\"{planned_for_url}\" />"
+      else:
+         planned_for = ""
 
       # Get priority information
       if priority:
