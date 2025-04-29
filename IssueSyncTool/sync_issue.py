@@ -5,7 +5,14 @@ import sys
 import os
 import re
 from .version import VERSION, VERSION_DATE
-from .utils import CONFIG_SCHEMA, REGEX_SPRINT_LABEL, REGEX_VERSION_LABEL, REGEX_PRIORITY_LABEL, REGEX_STORY_POINT_LABEL
+from .utils import (
+   CONFIG_SCHEMA,
+   REGEX_SPRINT_LABEL,
+   REGEX_VERSION_LABEL,
+   REGEX_PRIORITY_LABEL,
+   REGEX_STORY_POINT_LABEL,
+   REGEX_SPRINT_BACKLOG
+)
 from argparse import ArgumentParser
 from jsonschema import validate
 from .tracker import Tracker, Status, Ticket
@@ -507,8 +514,11 @@ Defined sync attributes:
 
       # remove existing sprint label include 'backlog'
       sprint_label_regex = re.compile(REGEX_SPRINT_LABEL)
-      updated_labels = [i for i in updated_labels if not sprint_label_regex.match(i) and i != 'backlog']
-      if dest_issue.version:
+      backlog_sprint_regex = re.compile(REGEX_SPRINT_BACKLOG)
+      updated_labels = [i for i in updated_labels if (not sprint_label_regex.match(i) and
+                                                      i != 'backlog' and
+                                                      not backlog_sprint_regex.match(i))]
+      if dest_issue.version and not backlog_sprint_regex.match(dest_issue.version):
          Logger.log(f"Adding sprint label '{dest_issue.version}'", indent=6)
          org_tracker.create_label(dest_issue.version, repository=org_issue.component)
          updated_labels = updated_labels+[dest_issue.version]
@@ -608,7 +618,9 @@ Defined sync attributes:
          # Force to update title for Epic work item
          changing_attribute_param['title'] = des_title
          changing_attribute_param['epic_statement'] = f"Original issue url: {org_issue.url}\n\n{org_issue.description}"
-
+      if not dest_issue.version and getattr(des_tracker.tracker_client, "planned_for", None):
+         # Update unplanned issue to default planned_for
+         changing_attribute_param['planned_for'] = des_tracker.tracker_client.planned_for
       Logger.log(f"Syncing {', '.join([attr.title() for attr in changing_attribute_param.keys()])}", indent=6)
       des_tracker.update_ticket(dest_issue.id, **changing_attribute_param)
 
