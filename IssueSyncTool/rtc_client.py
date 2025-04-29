@@ -206,11 +206,9 @@ Initialize the RTCClient instance.
    def get_planned_for_url(self, name):
       if name:
          url = f"{self.hostname}/ccm/oslc/iterations?oslc.where=dcterms:title=\"{name}\"&oslc.select=dcterms:identifier,dcterms:title"
-         print(url)
          res = self.__get_request(url, "Planned For")
          try:
             res_json = res.json()
-            print(res_json)
             return res_json['oslc:results'][0]["rdf:about"]
          except:
             raise Exception(f"Failed to get 'Planned For' url from response {res_json}")
