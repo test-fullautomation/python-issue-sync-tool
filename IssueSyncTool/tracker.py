@@ -1862,7 +1862,7 @@ Normalize a RTC issues to Ticket object.
    def connect(self, project: str, hostname: str, username: str = None,
                token: str = None, file_against: str = None,
                workflow_id: str = None, state_transition: dict = None,
-               project_scope: str = None):
+               project_scope: str = None, planned_for: str = None):
       """
 Connect to the RTC tracker.
 
@@ -1921,12 +1921,18 @@ Connect to the RTC tracker.
   / *Condition*: optional / *Type*: str / *Default*: None /
 
   The project scope name to set as default for new rtc work item.
+
+* ``planned_for``
+
+  / *Condition*: optional / *Type*: str / *Default*: None /
+
+  The version name (planned_for) to set as default for new rtc work item.
       """
       self.project = project
       self.hostname = hostname
       self.tracker_client = RTCClient(hostname, project, username, token,
                                       file_against, workflow_id, state_transition,
-                                      project_scope)
+                                      project_scope, planned_for)
 
    def get_ticket(self, id: Union[str, int]) -> Ticket:
       """

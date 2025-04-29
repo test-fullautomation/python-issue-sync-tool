@@ -90,6 +90,7 @@ CONFIG_SCHEMA = {
                   "token": {"type": "string"},
                   "file_against": {"type": "string"},
                   "project_scope": {"type": "string"},
+                  "planned_for": {"type": "string"},
                   "workflow_id": {"type": "string"},
                   "state_transition": {"type": "object"},
                   "condition": {
@@ -247,3 +248,5 @@ REGEX_VERSION_LABEL = r"^\d+\.\d+\.\d+$"
 REGEX_PRIORITY_LABEL = r"prio\s*(\d+)"
 
 REGEX_STORY_POINT_LABEL = r"(\d+)\s*pts"
+
+REGEX_SPRINT_BACKLOG = r"[Bb]acklog.*"
