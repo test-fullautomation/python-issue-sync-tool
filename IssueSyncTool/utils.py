@@ -70,6 +70,7 @@ CONFIG_SCHEMA = {
                   "hostname": {"type": "string"},
                   "project": {"type": "string"},
                   "token": {"type": "string"},
+                  "board_id": {"type": ["integer", "string"]},
                   "condition": {
                      "$ref": "#/$defs/jira_condition",
                      "exclude": {

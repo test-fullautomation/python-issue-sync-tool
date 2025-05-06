@@ -1040,7 +1040,7 @@ Get Sprint information from given issue
    Jira Sprint name.
       """
       sprint_name = []
-      for sprint in issue.issue_client.raw.get('fields', {}).get('customfield_10821'):
+      for sprint in issue.raw.get('fields', {}).get('customfield_10821'):
          name = re.findall(r"name=([^,]*)", str(sprint))
          if name:
             sprint_name.extend(name)
