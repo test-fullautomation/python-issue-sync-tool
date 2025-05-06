@@ -519,6 +519,10 @@ Defined sync attributes:
                                                       i != 'backlog' and
                                                       not backlog_sprint_regex.match(i))]
       if dest_issue.sprint and not backlog_sprint_regex.match(dest_issue.sprint):
+         if org_tracker.TYPE == "jira":
+            Logger.log(f"Adding ticket {org_issue.id} to sprint '{dest_issue.sprint}'", indent=6)
+            org_tracker.add_issues_to_sprint(org_issue.id, dest_issue.sprint)
+
          Logger.log(f"Adding sprint label '{dest_issue.sprint}'", indent=6)
          org_tracker.create_label(dest_issue.sprint, repository=org_issue.component)
          updated_labels = updated_labels+[dest_issue.sprint]
