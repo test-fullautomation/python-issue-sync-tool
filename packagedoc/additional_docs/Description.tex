@@ -451,37 +451,59 @@ organizational standards.
 
 \begin{longtable}{|l|l|l|l|}
    \hline
-   \textbf{Original tracker} & \textbf{Direction} & \textbf{Destination tracker} & \textbf{Stage} \\
+   \textbf{Stage} & \textbf{Original tracker} & \textbf{Direction} & \textbf{Destination tracker}\\
    \hline
    \endfirsthead
 
    \hline
-   \textbf{Original tracker} & \textbf{Direction} & \textbf{Destination tracker} & \textbf{Stage} \\
+   \textbf{Stage} & \textbf{Original tracker} & \textbf{Direction} & \textbf{Destination tracker}\\
    \hline
    \endhead
 
    \multirow{8}{*}{\textbf{New}}
-   Title & $\rightarrow$ & Title & New/Sync \\
+      & Component + Title & $\rightarrow$ & Title \\
+      \cline{2-4}
+      & URL + Description & $\rightarrow$ & Description \\
+      \cline{2-4}
+      & Assignee & $\rightarrow$ & Assignee \\
+      \cline{2-4}
+      & Priority & $\rightarrow$ & Priority \\
+      \cline{2-4}
+      & Story point & $\rightarrow$ & Story point \\
+      \cline{2-4}
+      & Labels & $\rightarrow$ & Labels \\
+      \cline{2-4}
+      & Relationship & $\rightarrow$ & Relationship \\
+      \cline{2-4}
+      & Title (e.g [xxx] Title) & $\leftarrow$ & ID \\
    \hline
-   URL + Description & $\rightarrow$ & Description & New/Sync \\
-   \hline
-   Assignee & $\rightarrow$ & Assignee & New/Sync (not set on Destination) \\
-   \hline
-   Status & $\rightarrow$ & Status & New/Sync \\
-   \hline
-   Story point & $\rightarrow$ & Story point & New/Sync (not set on Destination) \\
-   \hline
-   Priority & $\rightarrow$ & Priority & New/Sync (not set on Destination) \\
-   \hline
-   Title & $\leftarrow$ & ID & New \\
-   \hline
-   Version/Label & $\leftarrow$ & Sprint/Version & Sync \\
-   \hline
-   Assignee & $\leftarrow$ & Assignee & Sync (is set on Destination) \\
-   \hline
-   Story point & $\leftarrow$ & Story point & Sync (is set on Destination) \\
-   \hline
-   Priority & $\leftarrow$ & Priority & Sync (is set on Destination) \\
+   \multirow{12}{*}{\textbf{Sync}}
+      & Component + Title & $\rightarrow$ & Title \\
+      \cline{2-4}
+      & URL + Description & $\rightarrow$ & Description \\
+      \cline{2-4}
+      & Relationship & $\rightarrow$ & Relationship \\
+      \cline{2-4}
+      & Labels & $\rightarrow$ & Labels \\
+      \cline{2-4}
+      & Sprint & $\leftarrow$ & Sprint \\
+      \cline{2-4}
+      & Version & $\leftarrow$ & Version \\
+      \cline{2-4}
+      & \multirow{2}{*}{Assignee}
+         & $\leftarrow$ & Assignee (if set on Destination) \\
+         \cline{3-4}
+         & & $\rightarrow$ & Assignee (if not set on Destination) \\
+      \cline{2-4}
+      & \multirow{2}{*}{Story point}
+         & $\leftarrow$ & Story point (if set on Destination) \\
+         \cline{3-4}
+         & & $\rightarrow$ & Story point (if not set on Destination) \\
+      \cline{2-4}
+      & \multirow{2}{*}{Priority}
+         & $\leftarrow$ & Priority (is set on Destination) \\
+         \cline{3-4}
+         & & $\rightarrow$ & Priority (if not set on Destination) \\
    \hline
 \end{longtable}
 
@@ -507,13 +529,13 @@ organizational standards.
    \hline
    Component & Repository & Repository & Component & Component \\
    \hline
-   Status & Status & Status & Status & Status \\
+   Status & Labels & Labels & Status & Status \\
    & ("in work", "ready for verifying") & ("in work", "ready for verifying") & & \\
    \hline
    Story point & Labels (x pts) & Labels (x pts) & Estimate & Story point \\
    \hline
    Priority & Labels (prio x) & Labels (prio x) & Priority & Priority \\
    \hline
-   Sprint & Labels & Labels & Labels & Planned For \\
+   Sprint & Labels (PI.*) & Labels (PI.*) & Sprint & Planned For \\
    \hline
 \end{longtable}
