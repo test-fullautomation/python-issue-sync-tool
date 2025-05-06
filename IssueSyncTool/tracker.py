@@ -1971,7 +1971,7 @@ Normalize a RTC issues to Ticket object.
                      self.__get_workitem_status(issue),
                      story_point=self.__get_story_point(issue),
                      priority=self.get_priority(issue),
-                     version=self.get_plannedFor(issue),
+                     sprint=self.get_plannedFor(issue),
                      issue_client=self.tracker_client,
                      type=issue['dcterms:type'],
                      children=self.__get_children_issues(issue),
@@ -2086,7 +2086,7 @@ Connect to the RTC tracker.
 
   / *Condition*: optional / *Type*: str / *Default*: None /
 
-  The version name (planned_for) to set as default for new rtc work item.
+  The sprint name (planned_for) to set as default for new rtc work item.
       """
       self.project = project
       self.hostname = hostname
