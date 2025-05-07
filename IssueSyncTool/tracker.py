@@ -932,6 +932,7 @@ Jira does not require to create label before, label can be add directly in ticke
       board_id = board_id if board_id else self.board_id
       if not board_id:
          raise Exception(f"Board ID is required to create new Jira Sprint")
+      return board_id
 
    def __get_sprint_id(self, name, board_id=None):
       """
@@ -989,11 +990,12 @@ Create new Jira Sprint
 
 (*no returns*)
       """
-      self.__validate_board_id(board_id)
+      board_id = self.__validate_board_id(board_id)
       try:
-         self.tracker_client.create_sprint(name, board_id)
+         sprint = self.tracker_client.create_sprint(name, board_id)
       except Exception as reason:
          raise Exception(f"Failed to create new Jira Sprint of board ID '{board_id}'. Reason: {reason}")
+      return sprint.id
 
    def get_sprints(self, board_id=None):
       """
@@ -1013,7 +1015,7 @@ Description
 
    List of Sprints which are belongs to given board ID
       """
-      self.__validate_board_id(board_id)
+      board_id = self.__validate_board_id(board_id)
       try:
          return self.tracker_client.sprints(board_id)
       except Exception as reason:
@@ -1039,16 +1041,17 @@ Get Sprint information from given issue
 
    Jira Sprint name.
       """
-      sprint_name = []
-      for sprint in issue.raw.get('fields', {}).get('customfield_10821'):
-         name = re.findall(r"name=([^,]*)", str(sprint))
-         if name:
-            sprint_name.extend(name)
+      sprint_name = None
+      if issue.raw.get('fields', {}).get('customfield_10821'):
+         for sprint in issue.raw.get('fields', {}).get('customfield_10821'):
+            name = re.findall(r"name=([^,]*)", str(sprint))
+            if name:
+               sprint_name = name[0]
       return sprint_name
 
-   def add_issues_to_sprint(self, issue_id, sprint_name, board_id=None):
+   def add_issues_to_sprint(self, sprint_name, list_issues, board_id=None):
       """
-Add issue to Sprint
+Add issues to Sprint
 
 **Arguments:**
 
@@ -1058,11 +1061,11 @@ Add issue to Sprint
 
    Jira Sprint name.
 
-*  ``issue_id``
+*  ``list_issues``
 
-   / *Condition*: required / *Type*: str /
+   / *Condition*: required / *Type*: list /
 
-   Issue id to add to given Sprint.
+   list of issues id to add to given Sprint.
 
 *  ``board_id``
 
@@ -1080,9 +1083,9 @@ Add issue to Sprint
          sprint_id = self.__create_sprint(sprint_name, board_id)
 
       try:
-         self.tracker_client.add_issues_to_sprint(sprint_id, issue_id)
+         self.tracker_client.add_issues_to_sprint(sprint_id, list_issues)
       except Exception as reason:
-         raise Exception(f"Failed to add issue '{issue_id}' to Sprint '{sprint_name}'. Reason: {reason}")
+         raise Exception(f"Failed to add issue {', '.join(str(id) for id in list_issues)} to Sprint '{sprint_name}'. Reason: {reason}")
 
 class GithubTracker(TrackerService):
    """
