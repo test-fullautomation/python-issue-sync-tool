@@ -518,13 +518,17 @@ Defined sync attributes:
       updated_labels = [i for i in updated_labels if (not sprint_label_regex.match(i) and
                                                       i != 'backlog' and
                                                       not backlog_sprint_regex.match(i))]
-      if dest_issue.version and not backlog_sprint_regex.match(dest_issue.version):
-         Logger.log(f"Adding sprint label '{dest_issue.version}'", indent=6)
-         org_tracker.create_label(dest_issue.version, repository=org_issue.component)
-         updated_labels = updated_labels+[dest_issue.version]
+      if dest_issue.sprint and not backlog_sprint_regex.match(dest_issue.sprint):
+         if org_tracker.TYPE == "jira":
+            Logger.log(f"Adding ticket {org_issue.id} to sprint '{dest_issue.sprint}'", indent=6)
+            org_tracker.add_issues_to_sprint(dest_issue.sprint, [org_issue.id])
+
+         Logger.log(f"Adding sprint label '{dest_issue.sprint}'", indent=6)
+         org_tracker.create_label(dest_issue.sprint, repository=org_issue.component)
+         updated_labels = updated_labels+[dest_issue.sprint]
 
          # Get version label which maps to ticket planning sprint
-         version_label = get_additional_labels_of_sprint(dest_issue.version, org_issue.component, sprint_version_mapping, component_mapping)
+         version_label = get_additional_labels_of_sprint(dest_issue.sprint, org_issue.component, sprint_version_mapping, component_mapping)
          if version_label:
             version_label_regex = re.compile(REGEX_VERSION_LABEL)
             # Remove existing version label in original ticket
@@ -618,7 +622,7 @@ Defined sync attributes:
          # Force to update title for Epic work item
          changing_attribute_param['title'] = des_title
          changing_attribute_param['epic_statement'] = f"Original issue url: {org_issue.url}\n\n{org_issue.description}"
-      if not dest_issue.version and getattr(des_tracker.tracker_client, "planned_for", None):
+      if not dest_issue.sprint and getattr(des_tracker.tracker_client, "planned_for", None):
          # Update unplanned issue to default planned_for
          changing_attribute_param['planned_for'] = des_tracker.tracker_client.planned_for
       Logger.log(f"Syncing {', '.join([attr.title() for attr in changing_attribute_param.keys()])}", indent=6)

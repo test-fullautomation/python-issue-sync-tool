@@ -135,6 +135,7 @@ Normalized Ticket with required information for syncing between trackers.
                 status: Optional[str] = None,
                 component: Optional[str] = None,
                 version: Optional[str] = None,
+                sprint: Optional[str] = None,
                 story_point: Optional[int] = None,
                 priority: Optional[int] = None,
                 createdDate: Optional[str] = None,
@@ -251,6 +252,7 @@ Initialize a new Ticket.
       self.updatedDate = updatedDate
       self.component = component
       self.version = version
+      self.sprint = sprint
       self.labels = labels if labels is not None else []
       self.story_point = story_point
       self.priority = priority
@@ -303,7 +305,6 @@ Update issue on tracker with following supported attributes:
             raise Exception(f"Failed to update {self.tracker.title()} issue {self.id}. Reason: {reason}")
       else:
          raise NotImplementedError(f"No implementation to update {self.tracker.title()} issue.")
-
 
    def _update_gitlab_issue(self, **kwargs):
       for attr, val in kwargs.items():
@@ -606,6 +607,7 @@ Initialize the JiraTracker instance.
       super().__init__()
       self.project = None
       self.hostname = None
+      self.board_id = None
 
    def __normalize_issue(self, issue) -> Ticket:
       """
@@ -641,7 +643,8 @@ Normalize a Jira ticket to Ticket object.
                      issue_client=issue,
                      type=self.__get_issue_type(issue),
                      parent=self.__get_parent_epic(issue),
-                     children=self.__get_children_story(issue)
+                     children=self.__get_children_story(issue),
+                     sprint=self.get_sprint_of_issue(issue)
                      )
 
    def __get_issue_type(self, issue):
@@ -668,7 +671,7 @@ Normalize a Jira ticket to Ticket object.
          return issue.raw['fields']['components'][0]['name']
       return None
 
-   def connect(self, project: str, token: str, hostname: str):
+   def connect(self, project: str, token: str, hostname: str, board_id: int=None):
       """
 Connect to the Jira tracker.
 
@@ -694,6 +697,7 @@ Connect to the Jira tracker.
       """
       self.project = project
       self.hostname = hostname
+      self.board_id = board_id
       self.tracker_client = JIRA(hostname, token_auth=token)
 
    def get_ticket(self, id: str) -> Ticket:
@@ -923,6 +927,165 @@ Jira does not require to create label before, label can be add directly in ticke
   The repository name.
       """
       pass
+
+   def __validate_board_id(self, board_id):
+      board_id = board_id if board_id else self.board_id
+      if not board_id:
+         raise Exception(f"Board ID is required to create new Jira Sprint")
+      return board_id
+
+   def __get_sprint_id(self, name, board_id=None):
+      """
+Get Jira Sprint ID of given name
+
+**Arguments:**
+
+*  ``name``
+
+   / *Condition*: required / *Type*: str /
+
+   Sprint name
+
+*  ``board_id``
+
+   / *Condition*: optional / *Type*: int /
+
+   Board ID to create new Sprint.
+   If not given, the configured `board_id` of Tracker is used.
+
+**Returns:**
+
+*  ``sprint_id``
+
+   / *Type*: id /
+
+   ID of given Sprint name.
+      """
+      for sprint in self.get_sprints(board_id):
+         if sprint.name == name:
+            return sprint.id
+
+      return None
+
+   def __create_sprint(self, name, board_id=None):
+      """
+Create new Jira Sprint
+
+**Arguments:**
+
+*  ``name``
+
+   / *Condition*: required / *Type*: str /
+
+   Sprint name
+
+*  ``board_id``
+
+   / *Condition*: optional / *Type*: int /
+
+   Board ID to create new Sprint.
+   If not given, the configured `board_id` of Tracker is used.
+
+**Returns:**
+
+(*no returns*)
+      """
+      board_id = self.__validate_board_id(board_id)
+      try:
+         sprint = self.tracker_client.create_sprint(name, board_id)
+      except Exception as reason:
+         raise Exception(f"Failed to create new Jira Sprint of board ID '{board_id}'. Reason: {reason}")
+      return sprint.id
+
+   def get_sprints(self, board_id=None):
+      """
+Description
+
+**Arguments:**
+
+*  ``board_id``
+
+   / *Condition*: optional / *Type*: int /
+
+   Jira Board ID to get Sprints
+
+**Returns:**
+
+   / *Type*: list /
+
+   List of Sprints which are belongs to given board ID
+      """
+      board_id = self.__validate_board_id(board_id)
+      try:
+         return self.tracker_client.sprints(board_id)
+      except Exception as reason:
+         raise Exception(f"Failed to get Sprints of board ID '{board_id}'. Reason: {reason}")
+
+   def get_sprint_of_issue(self, issue):
+      """
+Get Sprint information from given issue
+
+**Arguments:**
+
+*  ``issue``
+
+   / *Condition*: required / *Type*: <class 'jira.resources.Issue'> /
+
+   Jira issue resource.
+
+**Returns:**
+
+*  ``sprint_name``
+
+   / *Type*: str /
+
+   Jira Sprint name.
+      """
+      sprint_name = None
+      if issue.raw.get('fields', {}).get('customfield_10821'):
+         for sprint in issue.raw.get('fields', {}).get('customfield_10821'):
+            name = re.findall(r"name=([^,]*)", str(sprint))
+            if name:
+               sprint_name = name[0]
+      return sprint_name
+
+   def add_issues_to_sprint(self, sprint_name, list_issues, board_id=None):
+      """
+Add issues to Sprint
+
+**Arguments:**
+
+*  ``sprint_name``
+
+   / *Condition*: required / *Type*: str /
+
+   Jira Sprint name.
+
+*  ``list_issues``
+
+   / *Condition*: required / *Type*: list /
+
+   list of issues id to add to given Sprint.
+
+*  ``board_id``
+
+   / *Condition*: optional / *Type*: int /
+
+   Board ID to create new Sprint.
+   If not given, the configured `board_id` of Tracker is used.
+
+**Returns:**
+
+(*no returns*)
+      """
+      sprint_id = self.__get_sprint_id(sprint_name, board_id)
+      if not sprint_id:
+         sprint_id = self.__create_sprint(sprint_name, board_id)
+
+      try:
+         self.tracker_client.add_issues_to_sprint(sprint_id, list_issues)
+      except Exception as reason:
+         raise Exception(f"Failed to add issue {', '.join(str(id) for id in list_issues)} to Sprint '{sprint_name}'. Reason: {reason}")
 
 class GithubTracker(TrackerService):
    """
@@ -1811,7 +1974,7 @@ Normalize a RTC issues to Ticket object.
                      self.__get_workitem_status(issue),
                      story_point=self.__get_story_point(issue),
                      priority=self.get_priority(issue),
-                     version=self.get_plannedFor(issue),
+                     sprint=self.get_plannedFor(issue),
                      issue_client=self.tracker_client,
                      type=issue['dcterms:type'],
                      children=self.__get_children_issues(issue),
@@ -1926,7 +2089,7 @@ Connect to the RTC tracker.
 
   / *Condition*: optional / *Type*: str / *Default*: None /
 
-  The version name (planned_for) to set as default for new rtc work item.
+  The sprint name (planned_for) to set as default for new rtc work item.
       """
       self.project = project
       self.hostname = hostname

@@ -237,6 +237,59 @@ Example issue:
    \item Destination Tracker Issue Title: \plog{[GenPkgDoc] Fix missing documentation}
 \end{itemize}
 
+\subsection{Sprint-Version Mapping Configuration}
+
+Consider a team delivering both \pcode{AIO} and \pcode{DevAtServ} in the same
+sprint cycle.
+Each product has its own development timeline and release schedule.
+
+This configuration allows SyncTool to determine and synchronize the correct
+version label on the original issue, based on the sprint information found in
+the destination issue.
+
+The \pcode{sprint_version_mapping} configuration defines the mapping between
+sprint identifiers and the specific versions of multiple software components
+(or products) being developed and released in parallel.
+\begin{itemize}
+  \item Each key in the mapping (e.g., \pcode{PI25.2.1}, \pcode{PI25.3.1})
+        represents a sprint or planning increment (PI).
+  \item Each value is a nested mapping of product names (e.g., \pcode{AIO},
+        \pcode{DevAtServ}) to their respective release version numbers.
+\end{itemize}
+
+Example Configuration:
+\begin{pythoncode}
+{
+   ...
+   "sprint_version_mapping": {
+      "PI25.2.1" : {
+         "AIO" : "0.14.0",
+         "DevAtServ" : "0.1.0"
+      },
+      "PI25.2.2" : {
+         "AIO" : "0.14.1",
+         "DevAtServ" : "0.1.0"
+      },
+      "PI25.2.4" : {
+         "AIO" : "0.14.1",
+         "DevAtServ" : "0.1.0"
+      },
+      "PI25.3.1" : {
+         "AIO" : "0.14.2",
+         "DevAtServ" : "0.1.0"
+      }
+   }
+}
+\end{pythoncode}
+
+This configuration plays a critical role in environments where teams are:
+\begin{itemize}
+  \item Developing \textbf{multiple software products} in parallel
+        (e.g., \pcode{AIO}, \pcode{DevAtServ}).
+  \item Practicing Agile or SAFe methodologies with iterative sprint-based
+        planning.
+\end{itemize}
+
 \hypertarget{additional-features}{%
 \section{Additional features}\label{additional-features}}
 
@@ -355,3 +408,134 @@ Possible value of status and their meaning:
                                 with \pcode{nosync}, so it has been closed in the
                                 destination tracker (when using \plog{--nosync}).
 \end{itemize}
+
+\subsection{Default (Configurable) Values for New RTC Work Items}
+When creating new work items in RTC, the tool allows you to define default
+values for specific fields.
+These values can be configured in the JSON configuration file under the
+\pcode{rtc} section.
+
+Example configuration:
+\begin{pythoncode}
+{
+   ...
+   "rtc": {
+      ...
+      "file_against": "RF-AIO",
+      "planned_for": "Backlog_RFAIO",
+      "project_scope": "Roadmap",
+      ...
+   }
+   ...
+}
+\end{pythoncode}
+
+Explanation of fields:
+\begin{itemize}
+   \item \pcode{file_against:} Sets the default \textbf{Filed Against}.
+   \item \pcode{planned_for:} Sets the default \textbf{Planned For}.
+   \item \pcode{project_scope:} Specifies the default \textbf{Project Scope} for
+         new work items.
+\end{itemize}
+
+These default values ensure that newly created work items in RTC have consistent
+and predefined attributes, reducing manual effort and ensuring alignment with
+organizational standards.
+
+\newpage
+
+\hypertarget{attr-mapping}{%
+\section{Sync Data and Attributes Mapping}\label{attr-mapping}}
+
+\subsection{Sync Data: Attributes}
+
+\begin{longtable}{|l|l|l|l|}
+   \hline
+   \textbf{Stage} & \textbf{Original tracker} & \textbf{Direction} & \textbf{Destination tracker}\\
+   \hline
+   \endfirsthead
+
+   \hline
+   \textbf{Stage} & \textbf{Original tracker} & \textbf{Direction} & \textbf{Destination tracker}\\
+   \hline
+   \endhead
+
+   \multirow{8}{*}{\textbf{New}}
+      & Component + Title & $\rightarrow$ & Title \\
+      \cline{2-4}
+      & URL + Description & $\rightarrow$ & Description \\
+      \cline{2-4}
+      & Assignee & $\rightarrow$ & Assignee \\
+      \cline{2-4}
+      & Priority & $\rightarrow$ & Priority \\
+      \cline{2-4}
+      & Story point & $\rightarrow$ & Story point \\
+      \cline{2-4}
+      & Labels & $\rightarrow$ & Labels \\
+      \cline{2-4}
+      & Relationship & $\rightarrow$ & Relationship \\
+      \cline{2-4}
+      & Title (e.g [xxx] Title) & $\leftarrow$ & ID \\
+   \hline
+   \multirow{12}{*}{\textbf{Sync}}
+      & Component + Title & $\rightarrow$ & Title \\
+      \cline{2-4}
+      & URL + Description & $\rightarrow$ & Description \\
+      \cline{2-4}
+      & Relationship & $\rightarrow$ & Relationship \\
+      \cline{2-4}
+      & Labels & $\rightarrow$ & Labels \\
+      \cline{2-4}
+      & Sprint & $\leftarrow$ & Sprint \\
+      \cline{2-4}
+      & Version & $\leftarrow$ & Version \\
+      \cline{2-4}
+      & \multirow{2}{*}{Assignee}
+         & $\leftarrow$ & Assignee (if set on Destination) \\
+         \cline{3-4}
+         & & $\rightarrow$ & Assignee (if not set on Destination) \\
+      \cline{2-4}
+      & \multirow{2}{*}{Story point}
+         & $\leftarrow$ & Story point (if set on Destination) \\
+         \cline{3-4}
+         & & $\rightarrow$ & Story point (if not set on Destination) \\
+      \cline{2-4}
+      & \multirow{2}{*}{Priority}
+         & $\leftarrow$ & Priority (is set on Destination) \\
+         \cline{3-4}
+         & & $\rightarrow$ & Priority (if not set on Destination) \\
+   \hline
+\end{longtable}
+
+
+\subsection{Attributes Mapping on Trackers}
+
+\begin{longtable}{|l|l|l|l|l|}
+   \hline
+   \textbf{Name} & \textbf{Github} & \textbf{Gitlab} & \textbf{JIRA} & \textbf{RTC} \\
+   \hline
+   \endfirsthead
+
+   \hline
+   \textbf{Name} & \textbf{Github} & \textbf{Gitlab} & \textbf{JIRA} & \textbf{RTC} \\
+   \hline
+   \endhead
+
+   Title & Title & Title & Title & Title \\
+   \hline
+   URL & URL & URL & URL & URL \\
+   \hline
+   Assignee & Assignee & Assignee & Assignee & Owner \\
+   \hline
+   Component & Repository & Repository & Component & Component \\
+   \hline
+   Status & Labels & Labels & Status & Status \\
+   & ("in work", "ready for verifying") & ("in work", "ready for verifying") & & \\
+   \hline
+   Story point & Labels (x pts) & Labels (x pts) & Estimate & Story point \\
+   \hline
+   Priority & Labels (prio x) & Labels (prio x) & Priority & Priority \\
+   \hline
+   Sprint & Labels (PI.*) & Labels (PI.*) & Sprint & Planned For \\
+   \hline
+\end{longtable}
