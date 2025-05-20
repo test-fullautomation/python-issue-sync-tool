@@ -261,6 +261,7 @@ Initialize a new Ticket.
       self.type = type
       self.children = children
       self.parent = parent
+      self.is_synced = self.is_synced_issue()
 
    def __repr__(self):
       """

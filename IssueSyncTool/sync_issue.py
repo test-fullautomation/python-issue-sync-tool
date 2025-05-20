@@ -495,6 +495,12 @@ Defined sync attributes:
 
 (*no returns*)
    """
+   # Add step to fetch latest data of original issue before syncing
+   if org_tracker.TYPE == "jira":
+      org_issue = org_tracker.get_ticket(org_issue.id)
+   else:
+      org_issue = org_tracker.get_ticket(org_issue.id, org_issue.component)
+
    dest_issue = des_tracker.get_ticket(org_issue.destination_id)
 
    # mapping the original status with status labels "in work" and "ready for verifying"
@@ -691,7 +697,7 @@ Main function to sync issues between tracking systems.
          elif isinstance(issue.assignee, list) and len(issue.assignee):
             assignee = user_management.get_user(issue.assignee[0], source)
 
-         if issue.is_synced_issue():
+         if issue.is_synced:
             # update original issue on source tracker with planing from destination
             try:
                dest_issue = des_tracker.get_ticket(issue.destination_id)
