@@ -504,9 +504,9 @@ Defined sync attributes:
    dest_issue = des_tracker.get_ticket(org_issue.destination_id)
 
    # mapping the original status with status labels "in work" and "ready for verifying"
-   if "ready for verifying" in org_issue.labels:
+   if ("ready for verifying" in org_issue.labels) or ("ready_for_verifying" in org_issue.labels and org_tracker.TYPE == "jira"):
       org_issue.status = Status.closed
-   elif "in work" in org_issue.labels:
+   elif ("in work" in org_issue.labels) or ("in_work" in org_issue.labels and org_tracker.TYPE == "jira"):
       org_issue.status = Status.inProgress
 
    # Update original issue
