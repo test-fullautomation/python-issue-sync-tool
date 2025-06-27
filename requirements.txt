@@ -1,9 +1,9 @@
-PyGithub
-jira
-python-gitlab
-jsonschema
-lxml
-requests
-colorama
+PyGithub==2.6.1
+jira==3.8.0
+python-gitlab==6.0.0
+jsonschema==4.24.0
+lxml==5.4.0
+requests==2.32.4
+colorama==0.4.6
 GenPackageDoc
 PythonExtensionsCollection
