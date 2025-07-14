@@ -500,6 +500,7 @@ Defined sync attributes:
       org_issue = org_tracker.get_ticket(org_issue.id)
    else:
       org_issue = org_tracker.get_ticket(org_issue.id, org_issue.component)
+   org_issue = update_issue_relationship(org_tracker, org_issue, des_tracker.TYPE)
 
    dest_issue = des_tracker.get_ticket(org_issue.destination_id)
 
@@ -725,7 +726,6 @@ Main function to sync issues between tracking systems.
                sync_status = "synced"
                if not args.dryrun:
                   try:
-                     issue = update_issue_relationship(tracker, issue, des_tracker.TYPE)
                      process_sync_issues(issue, tracker, dest_issue, des_tracker, assignee, user_management, component_mapping, sprint_version_mapping, args.status_only)
                      sync_issue += 1
                   except Exception as reason:
@@ -744,7 +744,7 @@ Main function to sync issues between tracking systems.
                # create new issue on destination tracker
                if not args.dryrun:
                   try:
-                     issue = update_issue_relationship(tracker, issue, des_tracker.TYPE)
+                     update_issue_relationship(tracker, issue, des_tracker.TYPE)
                      res_id = process_new_issue(issue, des_tracker, assignee, component_mapping)
                      new_issue += 1
                   except Exception as reason:

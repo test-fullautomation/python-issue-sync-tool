@@ -877,25 +877,35 @@ Update a work item with the specified attributes.
                workitem_type_url = self.defined_workitem_type[val.lower()]
                oAttr.set("{%s}resource" % nsmap['rdf'], workitem_type_url)
             elif attr == "parent":
+               oChangeRequest = oWorkItem.find(f"oslc_cm:ChangeRequest", nsmap)
+               namespace, xml_node = self.xml_attr_mapping['parent'].split(":")
+
+               # Remove existing parent then add node with given value
+               oParent = oChangeRequest.find(self.xml_attr_mapping['parent'], nsmap)
+               if oParent:
+                  oChangeRequest.remove(oParent)
+               # Remove all existing links as Description
+               oLinks = oWorkItem.findall(f"rdf:Description", nsmap)
+               if oLinks:
+                  for oLink in oLinks:
+                     oWorkItem.getroot().remove(oLink)
+
                if val:
-                  if oAttr is not None:
-                     oAttr.set("{%s}resource" % nsmap['rdf'], f"{self.hostname}/ccm/resource/itemName/com.ibm.team.workitem.WorkItem/{val}")
-                  else:
-                     oChangeRequest = oWorkItem.find(f"oslc_cm:ChangeRequest", nsmap)
-                     namespace, xml_node = self.xml_attr_mapping['parent'].split(":")
-                     oParent = etree.Element(f"{{{nsmap[namespace]}}}{xml_node}", nsmap=nsmap)
-                     oParent.set("{%s}resource" % nsmap['rdf'], f"{self.hostname}/ccm/resource/itemName/com.ibm.team.workitem.WorkItem/{val}")
-                     oChangeRequest.append(oParent)
+                  oParent = etree.Element(f"{{{nsmap[namespace]}}}{xml_node}", nsmap=nsmap)
+                  oParent.set("{%s}resource" % nsmap['rdf'], f"{self.hostname}/ccm/resource/itemName/com.ibm.team.workitem.WorkItem/{val}")
+                  oChangeRequest.append(oParent)
             elif attr == "children":
                oChangeRequest = oWorkItem.find(f"oslc_cm:ChangeRequest", nsmap)
                namespace, xml_node = self.xml_attr_mapping['children'].split(":")
-               # Find and remove all existing children node then update the new one
+               # Find and remove all existing children node then update with new values
                current_children = oChangeRequest.findall(self.xml_attr_mapping['children'], nsmap)
-               if current_children is not None:
+               if current_children:
                   for child_node in current_children:
                      oChangeRequest.remove(child_node)
                if val:
                   for child in val:
+                     # Remove current parent of all given children to avoid issue when updating on RTC
+                     self.update_workitem(child, parent=None)
                      oChild = etree.Element(f"{{{nsmap[namespace]}}}{xml_node}", nsmap=nsmap)
                      oChild.set("{%s}resource" % nsmap['rdf'], f"{self.hostname}/ccm/resource/itemName/com.ibm.team.workitem.WorkItem/{child}")
                      oChangeRequest.append(oChild)
@@ -1177,6 +1187,8 @@ Create a new work item.
             raise TypeError(f"Not support data type {type(kwargs['children'])} for 'children' param")
 
          for item_id in workitem_ids:
+            # Remove current parent of all given children to avoid issue when creating on RTC
+            self.update_workitem(item_id, parent=None)
             children = children + f"<{self.xml_attr_mapping['children']} rdf:resource=\"{hostname}/ccm/resource/itemName/com.ibm.team.workitem.WorkItem/{item_id}\" />"
 
       if 'parent' in kwargs and kwargs["parent"]:
