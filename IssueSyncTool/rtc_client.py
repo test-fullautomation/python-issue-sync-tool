@@ -164,6 +164,13 @@ Initialize the RTCClient instance.
          self.state_transition = state_transition
       self.state_transition_graph = None
 
+   def __remove_description_nodes(self, oWorkItem, nsmap):
+      # Remove all existing links as Description to avoid updating Workitem's Summary
+      oLinks = oWorkItem.findall(f"rdf:Description", nsmap)
+      if len(oLinks):
+         for oLink in oLinks:
+            oWorkItem.getroot().remove(oLink)
+
    def __get_request(self, url, resource_type, custom_headers=None, exception_on_failure=True):
       get_kwargs = {
          "allow_redirects": True,
@@ -877,12 +884,7 @@ Update a work item with the specified attributes.
                workitem_type_url = self.defined_workitem_type[val.lower()]
                oAttr.set("{%s}resource" % nsmap['rdf'], workitem_type_url)
             elif attr == "parent":
-               # Remove all existing links as Description to avoid updating Workitem's Summary
-               oLinks = oWorkItem.findall(f"rdf:Description", nsmap)
-               if len(oLinks):
-                  for oLink in oLinks:
-                     oWorkItem.getroot().remove(oLink)
-
+               self.__remove_description_nodes(oWorkItem, nsmap)
                oChangeRequest = oWorkItem.find(f"oslc_cm:ChangeRequest", nsmap)
                namespace, xml_node = self.xml_attr_mapping['parent'].split(":")
                # Remove existing parent then add node with given value
@@ -895,12 +897,7 @@ Update a work item with the specified attributes.
                   oParent.set("{%s}resource" % nsmap['rdf'], f"{self.hostname}/ccm/resource/itemName/com.ibm.team.workitem.WorkItem/{val}")
                   oChangeRequest.append(oParent)
             elif attr == "children":
-               # Remove all existing links as Description to avoid updating Workitem's Summary
-               oLinks = oWorkItem.findall(f"rdf:Description", nsmap)
-               if len(oLinks):
-                  for oLink in oLinks:
-                     oWorkItem.getroot().remove(oLink)
-
+               self.__remove_description_nodes(oWorkItem, nsmap)
                oChangeRequest = oWorkItem.find(f"oslc_cm:ChangeRequest", nsmap)
                namespace, xml_node = self.xml_attr_mapping['children'].split(":")
                # Find and remove all existing children node then update with new values
@@ -1232,7 +1229,7 @@ Create a new work item.
 
    def remove_workitem_property(self, ticket_id, property):
       """
-Remove given properly from work item.
+Remove given property from work item.
 
 **Arguments:**
 
