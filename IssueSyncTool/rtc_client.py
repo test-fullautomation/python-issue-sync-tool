@@ -846,7 +846,7 @@ Update a work item with the specified attributes.
 
 **Returns:**
 
-* ``None``
+(*no returns*)
       """
       url = f"{self.hostname}/ccm/oslc/workitems/{ticket_id}"
       headers = copy.deepcopy(self.headers)
@@ -877,35 +877,41 @@ Update a work item with the specified attributes.
                workitem_type_url = self.defined_workitem_type[val.lower()]
                oAttr.set("{%s}resource" % nsmap['rdf'], workitem_type_url)
             elif attr == "parent":
-               oChangeRequest = oWorkItem.find(f"oslc_cm:ChangeRequest", nsmap)
-               namespace, xml_node = self.xml_attr_mapping['parent'].split(":")
-
-               # Remove existing parent then add node with given value
-               oParent = oChangeRequest.find(self.xml_attr_mapping['parent'], nsmap)
-               if oParent:
-                  oChangeRequest.remove(oParent)
-               # Remove all existing links as Description
+               # Remove all existing links as Description to avoid updating Workitem's Summary
                oLinks = oWorkItem.findall(f"rdf:Description", nsmap)
-               if oLinks:
+               if len(oLinks):
                   for oLink in oLinks:
                      oWorkItem.getroot().remove(oLink)
 
+               oChangeRequest = oWorkItem.find(f"oslc_cm:ChangeRequest", nsmap)
+               namespace, xml_node = self.xml_attr_mapping['parent'].split(":")
+               # Remove existing parent then add node with given value
+               oParent = oChangeRequest.find(self.xml_attr_mapping['parent'], nsmap)
+               if oParent is not None:
+                  oChangeRequest.remove(oParent)
+
+               oParent = etree.Element(f"{{{nsmap[namespace]}}}{xml_node}", nsmap=nsmap)
                if val:
-                  oParent = etree.Element(f"{{{nsmap[namespace]}}}{xml_node}", nsmap=nsmap)
                   oParent.set("{%s}resource" % nsmap['rdf'], f"{self.hostname}/ccm/resource/itemName/com.ibm.team.workitem.WorkItem/{val}")
                   oChangeRequest.append(oParent)
             elif attr == "children":
+               # Remove all existing links as Description to avoid updating Workitem's Summary
+               oLinks = oWorkItem.findall(f"rdf:Description", nsmap)
+               if len(oLinks):
+                  for oLink in oLinks:
+                     oWorkItem.getroot().remove(oLink)
+
                oChangeRequest = oWorkItem.find(f"oslc_cm:ChangeRequest", nsmap)
                namespace, xml_node = self.xml_attr_mapping['children'].split(":")
                # Find and remove all existing children node then update with new values
                current_children = oChangeRequest.findall(self.xml_attr_mapping['children'], nsmap)
-               if current_children:
+               if len(current_children):
                   for child_node in current_children:
                      oChangeRequest.remove(child_node)
                if val:
                   for child in val:
                      # Remove current parent of all given children to avoid issue when updating on RTC
-                     self.update_workitem(child, parent=None)
+                     self.remove_workitem_property(child, "parent")
                      oChild = etree.Element(f"{{{nsmap[namespace]}}}{xml_node}", nsmap=nsmap)
                      oChild.set("{%s}resource" % nsmap['rdf'], f"{self.hostname}/ccm/resource/itemName/com.ibm.team.workitem.WorkItem/{child}")
                      oChangeRequest.append(oChild)
@@ -1188,7 +1194,7 @@ Create a new work item.
 
          for item_id in workitem_ids:
             # Remove current parent of all given children to avoid issue when creating on RTC
-            self.update_workitem(item_id, parent=None)
+            self.remove_workitem_property(item_id, 'parent')
             children = children + f"<{self.xml_attr_mapping['children']} rdf:resource=\"{hostname}/ccm/resource/itemName/com.ibm.team.workitem.WorkItem/{item_id}\" />"
 
       if 'parent' in kwargs and kwargs["parent"]:
@@ -1223,3 +1229,49 @@ Create a new work item.
          return response.json()['dcterms:identifier']
       else:
          raise Exception(f"Failed to create new RTC work item. Reason: {response.text}")
+
+   def remove_workitem_property(self, ticket_id, property):
+      """
+Remove given properly from work item.
+
+**Arguments:**
+
+* ``ticket_id``
+
+  / *Condition*: required / *Type*: str /
+
+  The ID of the work item.
+
+* ``property``
+
+  / *Condition*: required / *Type*: str /
+
+  The property to be removed.
+
+**Returns:**
+
+(*no returns*)
+      """
+      if not self.xml_attr_mapping.get(property):
+         raise Exception(f"Property '{property}' is not supported for removing.")
+
+      property_name = self.xml_attr_mapping[property].split(':')[1]
+      url = f"{self.hostname}/ccm/oslc/workitems/{ticket_id}?oslc_cm.properties={property_name}"
+      headers = copy.deepcopy(self.headers)
+      headers["Accept"] = "application/xml"
+      res = self.session.get(url, headers=headers, verify=False)
+      if res.status_code != 200:
+         raise Exception(f"Failed to get work item: {ticket_id} to remove {property}. Reason: {res.reason}")
+
+      oWorkItem = get_xml_tree(BytesIO(str(res.text).encode()), bdtd_validation=False)
+      nsmap = oWorkItem.getroot().nsmap
+      oChangeRequest = oWorkItem.find(f"oslc_cm:ChangeRequest", nsmap)
+
+      oProperty = oChangeRequest.findall(f"oslc_cm:ChangeRequest//{property_name}", nsmap)
+      if len(oProperty):
+         for node in oProperty:
+            oChangeRequest.remove(node)
+
+      update_res = self.session.put(url, allow_redirects=True, verify=False, data=etree.tostring(oWorkItem))
+      if update_res.status_code not in [200, 204]:
+         raise Exception(f"Failed to remove property '{property}' of  work item '{ticket_id}'. Reason: {update_res.reason}")
