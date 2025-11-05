@@ -1185,17 +1185,33 @@ Get the repository client for the specified repository.
 
    def __get_sub_issues(self, issue):
       list_sub_issues = []
+
+      # process pagination to get all sub issues
+      page = 1
       try:
-         res_header, res_data = issue._requester.requestJsonAndCheck("GET", f"{issue.url}/sub_issues")
-         if len(res_data):
-            for item in res_data:
-               sub_issue = {
-                  "repository": item['repository_url'].split("/")[-1],
-                  "id": item['number']
-               }
-               list_sub_issues.append(sub_issue)
+         while True:
+            res_header, res_data = issue._requester.requestJsonAndCheck("GET", f"{issue.url}/sub_issues?per_page=100&page={page}")
+            if len(res_data):
+               for item in res_data:
+                  sub_issue = {
+                     "repository": item['repository_url'].split("/")[-1],
+                     "id": item['number']
+                  }
+                  list_sub_issues.append(sub_issue)
+               page += 1
+            else:
+               break
       except Exception as reason:
          raise Exception(f"Error when retrieve sub issue of issue {issue.number}. Reason: {reason}")
+
+      # ### This implementation for PyGithub >= 2.7.0 which added support Sub Issue
+      # children = issue.get_sub_issues()
+      # for child in children:
+      #    list_sub_issues.append({
+      #       "repository": child.repository_url.split("/")[-1],
+      #       "id": child.number
+      #    })
+      # ###
 
       return list_sub_issues
 
