@@ -658,8 +658,10 @@ Normalize a Jira ticket to Ticket object.
          return Ticket.Type.Story
 
    def __get_parent_epic(self, issue):
-      if 'customfield_11420' in issue.raw['fields']:
-         return issue.raw['fields']['customfield_11420']
+      if 'customfield_11420' in issue.raw['fields'] and issue.raw['fields']['customfield_11420']:
+         return {
+            "id" :issue.raw['fields']['customfield_11420']
+         }
       return None
 
    def __get_children_story(self, issue):
@@ -1216,7 +1218,16 @@ Get the repository client for the specified repository.
       return list_sub_issues
 
    def __get_parent_issue(self, issue):
-      #Currently no Github API to get parent issue
+      try:
+         res_header, res_data = issue._requester.requestJsonAndCheck("GET", f"{issue.url}/parent")
+         if res_data:
+            return {
+               "repository": res_data['repository_url'].split("/")[-1],
+               "id": res_data['number']
+            }
+      except Exception:
+         pass
+
       return None
 
    def connect(self, project: str, repository: Union[list, str], token: str, hostname: str = "api.github.com"):
