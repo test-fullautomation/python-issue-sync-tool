@@ -502,6 +502,8 @@ Defined sync attributes:
       org_issue = org_tracker.get_ticket(org_issue.id, org_issue.component)
    org_issue = update_issue_relationship(org_tracker, org_issue, des_tracker.TYPE)
 
+   org_issue = update_issue_relationship(org_tracker, org_issue, des_tracker.TYPE)
+
    dest_issue = des_tracker.get_ticket(org_issue.destination_id)
 
    # mapping the original status with status labels "in work" and "ready for verifying"
