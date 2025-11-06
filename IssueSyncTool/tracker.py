@@ -660,7 +660,7 @@ Normalize a Jira ticket to Ticket object.
    def __get_parent_epic(self, issue):
       if 'customfield_11420' in issue.raw['fields'] and issue.raw['fields']['customfield_11420']:
          return {
-            "id" :issue.raw['fields']['customfield_11420']
+            "id": issue.raw['fields']['customfield_11420']
          }
       return None
 

@@ -903,7 +903,7 @@ Update a work item with the specified attributes.
                if not update_children:
                   # Find and remove all existing children node then update the new one
                   current_children = oChangeRequest.findall(self.xml_attr_mapping['children'], nsmap)
-                  if current_children is not None:
+                  if current_children:
                      for child_node in current_children:
                         oChangeRequest.remove(child_node)
                if val:

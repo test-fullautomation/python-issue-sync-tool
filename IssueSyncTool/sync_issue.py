@@ -179,7 +179,7 @@ def update_issue_relationship(tracker, issue, des_tracker_type):
          # update issue to set parent as destination tracker id
          issue.parent = des_parent_id
       else:
-         Logger.log_warning(f"Parent issue {issue.parent.id} is not synced to {des_tracker_type}.")
+         Logger.log_warning(f"Parent issue {issue.parent['id']} is not synced to {des_tracker_type}.")
 
    if issue.children:
       #Used for Github tracker
