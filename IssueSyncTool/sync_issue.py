@@ -609,8 +609,9 @@ Defined sync attributes:
       if sorted(dest_issue.children) != sorted(org_issue.children):
          changing_relationship_param['children'] = org_issue.children
 
-      Logger.log(f"Updating {', '.join([attr.title() for attr in changing_relationship_param.keys()])} relationship", indent=6)
-      des_tracker.update_ticket(dest_issue.id, **changing_relationship_param)
+      if changing_relationship_param:
+         Logger.log(f"Updating {', '.join([attr.title() for attr in changing_relationship_param.keys()])} relationship", indent=6)
+         des_tracker.update_ticket(dest_issue.id, **changing_relationship_param)
 
       # Update workitem attributes
       changing_attribute_param = dict()
