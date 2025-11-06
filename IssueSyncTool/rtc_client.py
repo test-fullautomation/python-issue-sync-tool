@@ -833,7 +833,7 @@ Get a work item by its ID.
       else:
          raise Exception(f"Failed to retrieve issues: {ticket_id}. Reason: {response.reason}")
 
-   def update_workitem(self, ticket_id, **kwargs):
+   def update_workitem(self, ticket_id, update_children=False, **kwargs):
       """
 Update a work item with the specified attributes.
 
@@ -897,15 +897,21 @@ Update a work item with the specified attributes.
                   oParent.set("{%s}resource" % nsmap['rdf'], f"{self.hostname}/ccm/resource/itemName/com.ibm.team.workitem.WorkItem/{val}")
                   oChangeRequest.append(oParent)
             elif attr == "children":
-               self.__remove_description_nodes(oWorkItem, nsmap)
+               records_per_page = 30
                oChangeRequest = oWorkItem.find(f"oslc_cm:ChangeRequest", nsmap)
                namespace, xml_node = self.xml_attr_mapping['children'].split(":")
-               # Find and remove all existing children node then update with new values
-               current_children = oChangeRequest.findall(self.xml_attr_mapping['children'], nsmap)
-               if len(current_children):
-                  for child_node in current_children:
-                     oChangeRequest.remove(child_node)
+               if not update_children:
+                  # Find and remove all existing children node then update the new one
+                  current_children = oChangeRequest.findall(self.xml_attr_mapping['children'], nsmap)
+                  if current_children:
+                     for child_node in current_children:
+                        oChangeRequest.remove(child_node)
                if val:
+                  # only 30 children can be added for the single request
+                  if len(val) > records_per_page:
+                     self.update_workitem(ticket_id, update_children=True, children=val[records_per_page:])
+                     val = val[:records_per_page]
+
                   for child in val:
                      # Remove current parent of all given children to avoid issue when updating on RTC
                      self.remove_workitem_property(child, "parent")

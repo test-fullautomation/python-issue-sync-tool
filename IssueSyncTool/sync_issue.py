@@ -173,14 +173,13 @@ Write error message to console/file output.
 def update_issue_relationship(tracker, issue, des_tracker_type):
    # get destination children and parent issue(s) if existing
    if issue.parent:
-      # Used for Jira tracker
-      parent_issue = tracker.get_ticket(issue.parent)
+      parent_issue = tracker.get_ticket(**issue.parent)
       des_parent_id = get_id_from_title(parent_issue.title)
       if des_parent_id:
          # update issue to set parent as destination tracker id
          issue.parent = des_parent_id
       else:
-         Logger.log_warning(f"Parent issue {issue.parent} is not synced to {des_tracker_type}.")
+         Logger.log_warning(f"Parent issue {issue.parent['id']} is not synced to {des_tracker_type}.")
 
    if issue.children:
       #Used for Github tracker
@@ -500,8 +499,8 @@ Defined sync attributes:
       org_issue = org_tracker.get_ticket(org_issue.id)
    else:
       org_issue = org_tracker.get_ticket(org_issue.id, org_issue.component)
-   org_issue = update_issue_relationship(org_tracker, org_issue, des_tracker.TYPE)
 
+   org_issue = update_issue_relationship(org_tracker, org_issue, des_tracker.TYPE)
    dest_issue = des_tracker.get_ticket(org_issue.destination_id)
 
    # mapping the original status with status labels "in work" and "ready for verifying"
@@ -610,8 +609,9 @@ Defined sync attributes:
       if sorted(dest_issue.children) != sorted(org_issue.children):
          changing_relationship_param['children'] = org_issue.children
 
-      Logger.log(f"Updating {', '.join([attr.title() for attr in changing_relationship_param.keys()])} relationship", indent=6)
-      des_tracker.update_ticket(dest_issue.id, **changing_relationship_param)
+      if changing_relationship_param:
+         Logger.log(f"Updating {', '.join([attr.title() for attr in changing_relationship_param.keys()])} relationship", indent=6)
+         des_tracker.update_ticket(dest_issue.id, **changing_relationship_param)
 
       # Update workitem attributes
       changing_attribute_param = dict()
