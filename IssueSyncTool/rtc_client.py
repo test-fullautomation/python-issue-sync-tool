@@ -941,7 +941,7 @@ Update a work item with the specified attributes.
             raise Exception(f"Failed to update work item: {ticket_id}. Reason: {update_res.reason}")
 
          # New request to update remaining children node(s) due to pagination
-         if len(remaining_children):
+         if remaining_children:
             self.update_workitem(ticket_id, update_children=True, children=remaining_children)
 
       else:
