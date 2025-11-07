@@ -859,6 +859,7 @@ Update a work item with the specified attributes.
       headers = copy.deepcopy(self.headers)
       headers["Accept"] = "application/xml"
       res = self.session.get(url, headers=headers, verify=False)
+      remaining_children = []
       if res.status_code == 200:
          oWorkItem = get_xml_tree(BytesIO(str(res.text).encode()), bdtd_validation=False)
          nsmap = oWorkItem.getroot().nsmap
@@ -909,7 +910,7 @@ Update a work item with the specified attributes.
                if val:
                   # only 30 children can be added for the single request
                   if len(val) > records_per_page:
-                     self.update_workitem(ticket_id, update_children=True, children=val[records_per_page:])
+                     remaining_children = val[records_per_page:]
                      val = val[:records_per_page]
 
                   for child in val:
@@ -938,6 +939,11 @@ Update a work item with the specified attributes.
          update_res = self.session.put(url, allow_redirects=True, verify=False, data=etree.tostring(oWorkItem))
          if update_res.status_code not in [200, 204]:
             raise Exception(f"Failed to update work item: {ticket_id}. Reason: {update_res.reason}")
+
+         # New request to update remaining children node(s) due to pagination
+         if remaining_children:
+            self.update_workitem(ticket_id, update_children=True, children=remaining_children)
+
       else:
          raise Exception(f"Failed to get work item: {ticket_id} for update. Reason: {res.reason}")
 
