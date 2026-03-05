@@ -54,7 +54,7 @@ Initial release
 "
 * Usage of **Setuptools** replaced by usage of **PIP/TOML/Setuptools**.
 
-  Details about how to install the component with PIP, can be found in the `README <https://github.com/test-fullautomation/python-issue-sync-tool/blob/main/README.rst>`__
+  Details about how to install the component with PIP, can be found in the `README <https://github.com/test-fullautomation/python-issue-sync-tool/blob/develop/README.rst>`__
 "
                     ]
                 }
