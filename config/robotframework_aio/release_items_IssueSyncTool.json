@@ -1,6 +1,6 @@
 # **************************************************************************************************************
 #
-# Copyright 2020-2023 Robert Bosch GmbH
+# Copyright 2020-2026 Robert Bosch GmbH
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -47,8 +47,15 @@
    "RELEASES"  : {
                    "0.13.1" : [
 "
-(under construction)
+Initial release
 "
-                             ]
+                   ],
+                   "1.0.0.;1.1.0." : [
+"
+* Usage of **Setuptools** replaced by usage of **PIP/TOML/Setuptools**.
+
+  Details about how to install the component with PIP, can be found in the `README <https://github.com/test-fullautomation/python-issue-sync-tool/blob/main/README.rst>`__
+"
+                    ]
                 }
 }

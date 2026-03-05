@@ -1,6 +1,6 @@
 # **************************************************************************************************************
 #
-#  Copyright 2020-2023 Robert Bosch GmbH
+#  Copyright 2020-2026 Robert Bosch GmbH
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 #
 # **************************************************************************************************************
 #
-# Version and date of SyncIssue
+# Version and date of IssueSyncTool
 #
-VERSION      = "0.3.8"
-VERSION_DATE = "05.11.2025"
+VERSION      = "0.4.0"
+VERSION_DATE = "05.03.2026"

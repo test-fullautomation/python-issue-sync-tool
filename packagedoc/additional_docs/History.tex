@@ -1,4 +1,4 @@
-% Copyright 2020-2023 Robert Bosch GmbH
+% Copyright 2020-2026 Robert Bosch GmbH
 
 % Licensed under the Apache License, Version 2.0 (the "License");
 % you may not use this file except in compliance with the License.
@@ -39,25 +39,25 @@
     \historychange{Fix issue when adding label to closed ticket on JIRA}
 
     \historyversiondate{0.2.4}{03/2025}
-    \historychange{Use labels \plog{in work} and \plog{ready for verifying} for \pcode{In Progress} and \pcode{Done} status}
+    \historychange{Use labels \texttt{in work} and \texttt{ready for verifying} for \texttt{In Progress} and \texttt{Done} status}
 
     \historyversiondate{0.3.0}{03/2025}
     \historychange{Introduce new feature to sync Epic and its relationship}
 
     \historyversiondate{0.3.1}{03/2025}
-    \historychange{Update the behavior of \pcode{priority}:\newline
+    \historychange{Update the behavior of \texttt{priority}:\newline
     - If the priority is not set in destination issue, sync it from original issue to destination.\newline
     - Otherwise, sync priority back from destination to original issue.
     }
 
     \historyversiondate{0.3.2}{03/2025}
-    \historychange{- Update the behavior of \pcode{story point} and \pcode{assignee} to sync back the value from the destination if it is set.\newline
-- Add new configuration \pcode{project_scope} for RTC tracker to set project scope when creating new work item.
+    \historychange{- Update the behavior of \texttt{story point} and \texttt{assignee} to sync back the value from the destination if it is set.\newline
+- Add new configuration \texttt{project\_scope} for RTC tracker to set project scope when creating new work item.
     }
 
     \historyversiondate{0.3.3}{05/2025}
-    \historychange{- Add new configuration \pcode{planned_for} for RTC tracker to set default \pcode{Planned For} when creating new work item.\newline
-- Add feature to sync (update or create) \pcode{Sprint} of issue back to Jira with configured board ID.
+    \historychange{- Add new configuration \texttt{planned\_for} for RTC tracker to set default \texttt{Planned For} when creating new work item.\newline
+- Add feature to sync (update or create) \texttt{Sprint} of issue back to Jira with configured board ID.
     }
 
     \historyversiondate{0.3.4}{05/2025}
@@ -73,7 +73,11 @@
     \historychange{Fix issue of syncing issue which changed relationship.}
 
     \historyversiondate{0.3.8}{11/2025}
-    \historychange{- Fix issue of missing Github children issues due to Github pagination.
-- Fix issue of missing children issues in RTC's Epic due to RTC pagination.
+    \historychange{- Fix issue of missing Github children issues due to Github pagination.\newline
+- Fix issue of missing children issues in RTC's Epic due to RTC pagination.\newline
 - Add implementation to get Github parent issue according to new Github API.}
+
+    \historyversiondate{0.4.0}{05.03.2026}
+    \historychange{Usage of \texttt{Setuptools} replaced by usage of \texttt{PIP/TOML/Setuptools}}
+
 \end{packagehistory}
