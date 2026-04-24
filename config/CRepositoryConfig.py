@@ -1,0 +1,244 @@
+# **************************************************************************************************************
+#
+#  Copyright 2020-2026 Robert Bosch GmbH
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+# **************************************************************************************************************
+#
+# CRepositoryConfig.py
+#
+# XC-HWP/ESW3-Queckenstedt
+#
+# Purpose:
+# - Compute and store all repository specific information, like the repository name,
+#   paths to repository subfolder, paths to interpreter and so on ...
+#
+# - All paths to subfolder depends on the repository root path that has to be provided
+#   to constructor of CRepositoryConfig
+#
+# --------------------------------------------------------------------------------------------------------------
+#
+# 05.03.2026
+#
+# --------------------------------------------------------------------------------------------------------------
+
+import os, sys, site, platform, shlex, subprocess, json
+import colorama as col
+import tomllib
+
+from PythonExtensionsCollection.String.CString import CString
+
+from IssueSyncTool.version import VERSION
+from IssueSyncTool.version import VERSION_DATE
+
+col.init(autoreset=True)
+COLBR = col.Style.BRIGHT + col.Fore.RED
+COLBG = col.Style.BRIGHT + col.Fore.GREEN
+
+# --------------------------------------------------------------------------------------------------------------
+
+def printerror(sMsg):
+    sys.stderr.write(COLBR + f"Error: {sMsg}!\n")
+
+def printexception(sMsg):
+    sys.stderr.write(COLBR + f"Exception: {sMsg}!\n")
+
+# --------------------------------------------------------------------------------------------------------------
+
+class CRepositoryConfig():
+
+    def __init__(self, sCalledBy=None):
+
+        # TODO: error handling sCalledBy=None
+        sCalledBy = CString.NormalizePath(sCalledBy)
+        self.__sReferencePath = os.path.dirname(sCalledBy)
+
+        self.__dictRepositoryConfig = None # initialized below by json.load()
+
+        # load static configuration values (name of json file is fix)
+        sRepositoryConfigurationFile = CString.NormalizePath(f"{self.__sReferencePath}/config/repository_config.json")
+        hRepositoryConfigurationFile = open(sRepositoryConfigurationFile, encoding="utf-8")
+        self.__dictRepositoryConfig = json.load(hRepositoryConfigurationFile)
+        hRepositoryConfigurationFile.close()
+
+        # add further infos
+        # (to have the possibility to print out all values with help of 'PrintConfig()')
+        self.__dictRepositoryConfig['CALLEDBY']                    = sCalledBy
+        self.__dictRepositoryConfig['CWD']                         = os.getcwd()
+        self.__dictRepositoryConfig['REFERENCEPATH']               = self.__sReferencePath
+        self.__dictRepositoryConfig['REPOSITORYCONFIGURATIONFILE'] = sRepositoryConfigurationFile
+
+        # add version and date of the package this repository configuration belongs to
+        self.__dictRepositoryConfig['PACKAGEVERSION'] = VERSION
+        self.__dictRepositoryConfig['PACKAGEDATE']    = VERSION_DATE
+
+        # make absolute path to package documentation
+        self.__dictRepositoryConfig['PACKAGEDOC'] = CString.NormalizePath(sPath=self.__dictRepositoryConfig['PACKAGEDOC'], sReferencePathAbs=self.__sReferencePath)
+
+        # read additional values from TOML configuration file
+        toml_data = None
+        toml_file = f"{self.__sReferencePath}/pyproject.toml"
+        self.__dictRepositoryConfig['TOMLCONFIGURATIONFILE'] = toml_file
+        try:
+            if not os.path.exists(toml_file):
+                raise FileNotFoundError(f"TOML file '{toml_file}' not found")
+            with open(toml_file, 'rb') as f:
+                toml_data = tomllib.load(f)
+        except FileNotFoundError as ex:
+            raise Exception(f"TOML file '{toml_file}' not found") from ex
+        except tomllib.TOMLDecodeError as ex:
+            raise Exception(f"TOML file '{toml_file}' invalid: {ex}") from ex
+        except Exception as ex:
+            raise Exception(f"Failed to read TOML file '{toml_file}': {ex}") from ex
+        authors = toml_data.get("project", {}).get("authors") or []
+        author = authors[0] if isinstance(authors, list) and authors else {}
+        self.__dictRepositoryConfig['AUTHOR'] = author.get('name', "(not found)") if isinstance(author, dict) else "(not found)"
+        self.__dictRepositoryConfig['AUTHOREMAIL'] = author.get('email', "(not found)") if isinstance(author, dict) else "(not found)"
+        self.__dictRepositoryConfig['PACKAGENAME'] = toml_data["project"]["name"]
+        self.__dictRepositoryConfig['DESCRIPTION'] = toml_data["project"]["description"]
+        self.__dictRepositoryConfig['BUILDREQUIRES'] = toml_data["build-system"]["requires"]
+        self.__dictRepositoryConfig['EXECUTIONREQUIRES'] = toml_data["project"]["dependencies"]
+        self.__dictRepositoryConfig['PYTHON_REQUIRED'] = toml_data["project"]["requires-python"]
+        self.__dictRepositoryConfig['LICENSE'] = toml_data["project"]["license"]
+        self.__dictRepositoryConfig['KEYWORDS'] = toml_data["project"]["keywords"]
+        # currently skipped because too much content for nice console output:
+        # self.__dictRepositoryConfig['classifiers'] = toml_data["project"]["classifiers"]
+        self.__dictRepositoryConfig['DYNAMIC_VALUES'] = toml_data["project"]["dynamic"]
+        # save access to optional values
+        project = toml_data.get("project", {})
+        optional_dependencies = project.get("optional-dependencies", {})
+        self.__dictRepositoryConfig['OPTIONAL_DEPENDENCIES'] = optional_dependencies.get("dev", [])  # list of optional dev dependencies
+        self.__dictRepositoryConfig['DOC_DEPENDENCIES'] = optional_dependencies.get("docs", [])      # list of optional docs dependencies
+        urls = project.get("urls", {})
+        self.__dictRepositoryConfig['URL_HOMEPAGE'] = urls.get("Homepage", "")                       # homepage URL as string
+        self.__dictRepositoryConfig['URL_DOCUMENTATION'] = urls.get("Documentation", "")             # documentation URL as string
+        self.__dictRepositoryConfig['URL_README'] = urls.get("Readme", "")                           # readme URL as string
+        self.__dictRepositoryConfig['URL_REPOSITORY'] = urls.get("Repository", "")                   # repository URL as string
+        self.__dictRepositoryConfig['URL'] = urls.get("Repository", "") # !!! downward compatibility to older version of GenPackageDoc / to be removed later
+        self.__dictRepositoryConfig['URL_ISSUES'] = urls.get("Issues", "")                           # issues URL as string
+        tool = toml_data.get("tool", {})
+        setuptools = tool.get("setuptools", {})
+        package_data = setuptools.get("package-data", {})
+        self.__dictRepositoryConfig['PACKAGE_DATA'] = package_data.get(self.__dictRepositoryConfig['PACKAGENAME'], [])
+
+        # compute dynamic configuration values
+        bSuccess, sResult = self.__InitConfig()
+        if bSuccess != True:
+            raise Exception(sResult)
+        print(COLBG + sResult)
+        print()
+
+
+    def __del__(self):
+        del self.__dictRepositoryConfig
+
+
+    def __InitConfig(self):
+
+        sOSName         = os.name
+        sPlatformSystem = platform.system()
+        sPythonPath     = CString.NormalizePath(os.path.dirname(sys.executable))
+        sPython         = CString.NormalizePath(sys.executable)
+        sPythonVersion  = sys.version
+
+        if sPlatformSystem not in ("Windows", "Linux"):
+            bSuccess = False
+            sResult  = f"Operating system {sPlatformSystem} ({sOSName}) not supported"
+            return bSuccess, sResult
+
+        # compute path to site-packages folder
+        sSitePackagesFolder = None
+        if hasattr(site, "getsitepackages"):
+            for path in site.getsitepackages():
+                if "site-packages" in os.path.basename(path):
+                    sSitePackagesFolder = path
+        else:
+            # fallback in case of getsitepackages() is not available (assuming typical standard paths)
+            if sys.platform.startswith('win'):
+                sSitePackagesFolder = os.path.join(sys.prefix, 'Lib', 'site-packages')
+            else:
+                sSitePackagesFolder = os.path.join(sys.prefix, 'lib', f'python{sys.version_info.major}.{sys.version_info.minor}', 'site-packages')
+        if not sSitePackagesFolder:
+            bSuccess = False
+            sResult  = f"Failed to compute the site-packages folder."
+            return bSuccess, sResult
+
+        # compute path to component folder inside site-packages
+        sInstalledPackageFolder = os.path.join(sSitePackagesFolder, self.__dictRepositoryConfig['PACKAGENAME'])
+
+        self.__dictRepositoryConfig['OSNAME']                 = sOSName
+        self.__dictRepositoryConfig['PLATFORMSYSTEM']         = sPlatformSystem
+        self.__dictRepositoryConfig['PYTHON']                 = sPython
+        self.__dictRepositoryConfig['PYTHONVERSION']          = sPythonVersion
+        self.__dictRepositoryConfig['INSTALLEDPACKAGEFOLDER'] = sInstalledPackageFolder
+
+        # ---- paths relative to repository root folder (where the scripts are located that use this module)
+
+        # ====== 1. documentation
+
+        # The following key doesn't matter in case of the documentation builder itself is using this CRepositoryConfig.
+        # But if the documentation builder is called by other apps like setup.py, they need to know where to find.
+        self.__dictRepositoryConfig['DOCUMENTATIONBUILDER'] = CString.NormalizePath(f"{self.__sReferencePath}/genpackagedoc.py")
+
+        # - folder containing the package source files (will also contain the PDF documentation)
+        self.__dictRepositoryConfig['PACKAGESOURCEFOLDER'] = CString.NormalizePath(f"{self.__sReferencePath}/{self.__dictRepositoryConfig['PACKAGENAME']}")
+
+        # ====== 2. PIP/TOML/setuptools
+
+        self.__dictRepositoryConfig['SETUPBUILDFOLDER'] = CString.NormalizePath(f"{self.__sReferencePath}/build")
+        EGGINFOFOLDER = self.__dictRepositoryConfig['PACKAGENAME'].replace('-', '_')
+        self.__dictRepositoryConfig['EGGINFOFOLDER'] = CString.NormalizePath(f"{self.__sReferencePath}/{EGGINFOFOLDER}.egg-info")
+        self.__dictRepositoryConfig['SETUPDISTFOLDER'] = CString.NormalizePath(f"{self.__sReferencePath}/dist")
+
+        print()
+        print(f"Running under {sPlatformSystem} ({sOSName})")
+        self.PrintConfig()
+
+        bSuccess = True
+        sResult  = "Repository setup done"
+        return bSuccess, sResult
+
+    # eof def __InitConfig(self):
+
+
+    def PrintConfig(self):
+        # -- printing configuration to console
+        nJust = 30
+        print()
+        for sKey in self.__dictRepositoryConfig:
+            print(sKey.rjust(nJust, ' ') + " : " + str(self.__dictRepositoryConfig[sKey]))
+        print()
+    # eof def PrintConfig(self):
+
+
+    def Get(self, sName=None):
+        if ( (sName is None) or (sName not in self.__dictRepositoryConfig) ):
+            print()
+            printerror(f"Error: Configuration parameter '{sName}' not existing!")
+            # from here it's standard output:
+            print("Use instead one of:")
+            self.PrintConfig()
+            return None # returning 'None' in case of key is not existing !!!
+        else:
+            return self.__dictRepositoryConfig[sName]
+    # eof def Get(self, sName=None):
+
+
+    def GetConfig(self):
+       return self.__dictRepositoryConfig
+    # eof def GetConfig(self):
+
+# eof class CRepositoryConfig():
+
+# --------------------------------------------------------------------------------------------------------------

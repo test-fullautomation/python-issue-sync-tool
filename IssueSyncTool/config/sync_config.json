@@ -1,0 +1,54 @@
+{
+   "source": ["github", "jira"],
+   "destination": ["rtc"],
+   "tracker": {
+      "github": {
+         "project" : "test-fullautomation",
+         "token": "<your_github_token>",
+         "repository": [
+            "python-issue-sync-tool",
+            "RobotFramework_AIO"
+         ],
+         "condition": {
+            "state": "open"
+         }
+      },
+      "jira": {
+         "hostname": "https://<your-jira-host>",
+         "project": "<your_project_name>",
+         "token": "<your_jira_token>",
+         "condition": {
+            "status": ["Open"],
+            "exclude" : {
+               "type": "Epic"
+            }
+         }
+      },
+      "rtc": {
+         "hostname": "https://<your-rtc-host>",
+         "project" : "<your_project_name>",
+         "token": "<your_base64_token>",
+         "username": "ntd1hc",
+         "file_against": "CAN",
+         "workflow_id" : "com.ibm.team.workitem.harmonizedStory.workflow",
+         "state_transition": {
+            "Start Working": [ "New", "In Development"],
+            "Ready for Acceptance": ["In Development", "Ready for Acceptance"],
+            "Done": ["Ready for Acceptance", "Done"],
+            "Reopen": ["Done", "New"]
+         }
+      }
+   },
+   "user": [
+      {
+         "name": "Tran Duy Ngoan",
+         "github": "ngoan1608",
+         "jira": "ntd1hc",
+         "rtc": "ntd1hc"
+      }
+   ],
+   "component_mapping": {
+      "python-issue-sync-tool": "SyncTool",
+      "RobotFramework_AIO": "AIO"
+   }
+}

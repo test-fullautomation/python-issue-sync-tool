@@ -1,0 +1,28 @@
+@startuml
+start
+
+:Parse cli arguments;
+:Process the configuration file;
+:Connect to all Trackers;
+
+repeat
+  :Select the next source from configuration;
+  :Retrieve issues from the selected source;
+
+  repeat
+    :Select the next issue from the retrieved issues;
+    :Check if this issue already exists in the destination tracker;
+
+    if (issue exists in destination?) then (no)
+      :Create a new issue in the destination tracker;
+      :Update source ticket with destination ID;
+    else (yes)
+      :Get ticket on destination tracker;
+      :Update source ticket;
+    endif
+  repeat while (there are more issues in the current source)
+
+repeat while (there are more sources in the configuration file)
+
+stop
+@enduml
