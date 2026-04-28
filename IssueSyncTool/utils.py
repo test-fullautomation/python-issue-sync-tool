@@ -28,6 +28,7 @@ CONFIG_SCHEMA = {
             "github": {
                "type": "object",
                "properties": {
+                  "hostname": {"type": "string"},
                   "project": {"type": "string"},
                   "token": {"type": "string"},
                   "repository" : {
