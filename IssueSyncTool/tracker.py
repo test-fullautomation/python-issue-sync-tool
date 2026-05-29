@@ -1106,6 +1106,7 @@ Initialize the GithubTracker instance.
       self.project = None
       self.project_number = None
       self.project_field_mapping = {}
+      self.project_field_value_mapping = {}
       self._token = None
       self._hostname = "api.github.com"
 
@@ -1241,7 +1242,7 @@ Get the repository client for the specified repository.
       return None
 
    def connect(self, project: str, repository: Union[list, str], token: str, hostname: str = "api.github.com",
-               project_number: int = None, project_field_mapping: dict = None):
+               project_number: int = None, project_field_mapping: dict = None, project_field_value_mapping: dict = None):
       """
 Connect to the GitHub tracker.
 
@@ -1292,13 +1293,27 @@ Connect to the GitHub tracker.
 
   Text and Date fields are also extracted as strings for any mapped key.
 
+* ``project_field_value_mapping``
+
+  / *Condition*: optional / *Type*: dict / *Default*: None /
+
+  Per-field value mappings applied after extraction from GitHub Projects v2.
+  The key is the internal Ticket attribute name (same keys as
+  ``project_field_mapping``); the value is a dict mapping raw GitHub field
+  values (strings) to the desired target value.
+
+  Useful when a SingleSelect field contains custom string values (e.g.
+  ``"P0"``, ``"P1"``, ``"P2"``) that must be converted to the internal
+  numeric representation used by the tool.
+
   Example::
 
      {
-        "sprint":      "Sprint",
-        "story_point": "Estimate",
-        "priority":    "Priority",
-        "status":      "Status"
+        "priority": {
+           "P0": 1,
+           "P1": 2,
+           "P2": 3
+        }
      }
       """
       self.project = project
@@ -1310,6 +1325,7 @@ Connect to the GitHub tracker.
          raise Exception("'repository' parameter should be list of repositories or string of single repo")
       self.project_number = project_number
       self.project_field_mapping = project_field_mapping if project_field_mapping else {}
+      self.project_field_value_mapping = project_field_value_mapping if project_field_value_mapping else {}
       self._token = token
       self._hostname = hostname
       auth = Auth.Token(token)
@@ -1504,6 +1520,10 @@ query GetIssueProjectItems($nodeId: ID!) {
             # Cast number fields to int when the value is a whole number
             if typename == "ProjectV2ItemFieldNumberValue":
                raw = int(raw) if float(raw) == int(float(raw)) else float(raw)
+            # Apply user-defined value mapping if present for this field
+            if internal_name in self.project_field_value_mapping:
+               val_map = self.project_field_value_mapping[internal_name]
+               raw = val_map.get(str(raw), raw)
             result[internal_name] = raw
 
       return result

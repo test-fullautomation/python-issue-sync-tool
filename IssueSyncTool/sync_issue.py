@@ -438,7 +438,7 @@ title with destination issue's id.
 
 def process_sync_issues(org_issue, org_tracker, dest_issue, des_tracker, assignee, user_management,
                         component_mapping=None, sprint_version_mapping=None,
-                        sync_only_status=False):
+                        sync_only_status=False, des_is_master=True):
    """
 Update source (original) issue due to information from appropriate destination one.
 
@@ -451,6 +451,14 @@ Update destination issue due to information from source.
 
 Defined sync attributes:
   - `Status`: status is synced from original ticket, not allow to update directly on destination tracker
+
+When ``des_is_master`` is ``True`` (default), the destination tracker is treated as the
+planning master: planning information (sprint, story point, priority, assignee) is read
+from the destination and synced back to the original tracker.
+
+When ``des_is_master`` is ``False``, the original tracker is treated as the planning
+master: planning information from the original issue is pushed to the destination tracker
+and no sync-back of planning data is performed on the original.
 
 **Arguments:**
 
@@ -490,6 +498,16 @@ Defined sync attributes:
 
    Mappings between sprint planning and product (AIO and DevAtServ) versions.
 
+*  ``des_is_master``
+
+   / *Condition*: optional / *Type*: bool / *Default*: True /
+
+   Indicates whether the destination tracker is the planning master.
+   When ``True``, planning info (sprint, story point, priority, assignee) is read
+   from the destination and synced back to the original tracker.
+   When ``False``, planning info is taken from the original and pushed to the
+   destination; no sync-back is performed.
+
 **Returns:**
 
 (*no returns*)
@@ -527,60 +545,84 @@ Defined sync attributes:
       updated_labels = [i for i in updated_labels if (not sprint_label_regex.match(i) and
                                                       i != 'backlog' and
                                                       not backlog_sprint_regex.match(i))]
-      if dest_issue.sprint and not backlog_sprint_regex.match(dest_issue.sprint):
-         if org_tracker.TYPE == "jira":
-            Logger.log(f"Adding ticket {org_issue.id} to sprint '{dest_issue.sprint}'", indent=6)
-            org_tracker.add_issues_to_sprint(dest_issue.sprint, [org_issue.id])
 
-         Logger.log(f"Adding sprint label '{dest_issue.sprint}'", indent=6)
-         org_tracker.create_label(dest_issue.sprint, repository=org_issue.component)
-         updated_labels = updated_labels+[dest_issue.sprint]
+      if des_is_master:
+         # Destination is master: sync back planning information from destination to original
+         if dest_issue.sprint and not backlog_sprint_regex.match(dest_issue.sprint):
+            if org_tracker.TYPE == "jira":
+               Logger.log(f"Adding ticket {org_issue.id} to sprint '{dest_issue.sprint}'", indent=6)
+               org_tracker.add_issues_to_sprint(dest_issue.sprint, [org_issue.id])
 
-         # Get version label which maps to ticket planning sprint
-         version_label = get_additional_labels_of_sprint(dest_issue.sprint, org_issue.component, sprint_version_mapping, component_mapping)
-         if version_label:
-            version_label_regex = re.compile(REGEX_VERSION_LABEL)
-            # Remove existing version label in original ticket
-            updated_labels = [i for i in updated_labels if not version_label_regex.match(i)]
-            Logger.log(f"Adding version label '{version_label}'", indent=6)
-            org_tracker.create_label(version_label, repository=org_issue.component)
-            updated_labels = updated_labels+[version_label]
-      else:
-         Logger.log_warning(f"Adding 'backlog' label for unplanned issue", indent=6)
-         updated_labels = updated_labels+['backlog']
+            Logger.log(f"Adding sprint label '{dest_issue.sprint}'", indent=6)
+            org_tracker.create_label(dest_issue.sprint, repository=org_issue.component)
+            updated_labels = updated_labels+[dest_issue.sprint]
 
-      # sync back priority from destination if it is set
-      if dest_issue.priority:
-         if org_tracker.TYPE in ["github", "gitlab"]:
-            # add priority label for github and gitlab tracker
-            priority_label_regex = re.compile(REGEX_PRIORITY_LABEL)
-            # Remove existing priority label in original ticket
-            updated_labels = [i for i in updated_labels if not priority_label_regex.match(i)]
-            updated_labels = updated_labels+[f'prio {dest_issue.priority}']
-         elif org_tracker.TYPE == "jira":
-            # add priority field for jira tracker
-            org_update_param['priority'] = {"name": org_tracker.get_priority_name_from_level(dest_issue.priority)}
+            # Get version label which maps to ticket planning sprint
+            version_label = get_additional_labels_of_sprint(dest_issue.sprint, org_issue.component, sprint_version_mapping, component_mapping)
+            if version_label:
+               version_label_regex = re.compile(REGEX_VERSION_LABEL)
+               # Remove existing version label in original ticket
+               updated_labels = [i for i in updated_labels if not version_label_regex.match(i)]
+               Logger.log(f"Adding version label '{version_label}'", indent=6)
+               org_tracker.create_label(version_label, repository=org_issue.component)
+               updated_labels = updated_labels+[version_label]
+         else:
+            Logger.log_warning(f"Adding 'backlog' label for unplanned issue", indent=6)
+            updated_labels = updated_labels+['backlog']
 
-      # sync back assignee from destination if it is set
-      if dest_issue.assignee and dest_issue.assignee.lower() != "unassigned":
-         try:
-            des_assignee = user_management.get_user(dest_issue.assignee.lower(), des_tracker.TYPE)
-            assignee_id = des_assignee.id[org_tracker.TYPE]
-            org_update_param['assignee'] = assignee_id
-         except Exception as reason:
-            Logger.log_error(f"Failed to sync back assignee information. Reason: {reason}", indent=6)
+         # sync back priority from destination if it is set
+         if dest_issue.priority:
+            if org_tracker.TYPE in ["github", "gitlab"]:
+               # add priority label for github and gitlab tracker
+               priority_label_regex = re.compile(REGEX_PRIORITY_LABEL)
+               # Remove existing priority label in original ticket
+               updated_labels = [i for i in updated_labels if not priority_label_regex.match(i)]
+               updated_labels = updated_labels+[f'prio {dest_issue.priority}']
+            elif org_tracker.TYPE == "jira":
+               # add priority field for jira tracker
+               org_update_param['priority'] = {"name": org_tracker.get_priority_name_from_level(dest_issue.priority)}
 
-      # sync back story point from destination if it is set
-      if dest_issue.story_point:
-         # add story_point label for github and gitlab tracker
-         story_point_label_regex = re.compile(REGEX_STORY_POINT_LABEL)
-         # Remove existing story_point label in original ticket
-         updated_labels = [i for i in updated_labels if not story_point_label_regex.match(i)]
-         if org_tracker.TYPE in ["github", "gitlab"]:
-            updated_labels = updated_labels+[f'{dest_issue.story_point} pts']
-         elif org_tracker.TYPE == "jira":
-            # jira label does not allow space
-            updated_labels = updated_labels+[f'{dest_issue.story_point}pts']
+         # sync back assignee from destination if it is set
+         if dest_issue.assignee and dest_issue.assignee.lower() != "unassigned":
+            try:
+               des_assignee = user_management.get_user(dest_issue.assignee.lower(), des_tracker.TYPE)
+               assignee_id = des_assignee.id[org_tracker.TYPE]
+               org_update_param['assignee'] = assignee_id
+            except Exception as reason:
+               Logger.log_error(f"Failed to sync back assignee information. Reason: {reason}", indent=6)
+
+         # sync back story point from destination if it is set
+         if dest_issue.story_point:
+            # add story_point label for github and gitlab tracker
+            story_point_label_regex = re.compile(REGEX_STORY_POINT_LABEL)
+            # Remove existing story_point label in original ticket
+            updated_labels = [i for i in updated_labels if not story_point_label_regex.match(i)]
+            if org_tracker.TYPE in ["github", "gitlab"]:
+               updated_labels = updated_labels+[f'{dest_issue.story_point} pts']
+            elif org_tracker.TYPE == "jira":
+               # jira label does not allow space
+               updated_labels = updated_labels+[f'{dest_issue.story_point}pts']
+
+      # else:
+      #    # Original is master: keep existing sprint/version labels from original; no sync-back
+      #    Logger.log(f"Destination is not master — keeping planning info from original tracker", indent=6)
+      #    # Re-apply the original sprint label if present (already stripped above, re-add)
+      #    if org_issue.sprint and not backlog_sprint_regex.match(org_issue.sprint):
+      #       updated_labels = updated_labels+[org_issue.sprint]
+      #    # Re-apply the original story_point label if present
+      #    if org_issue.story_point:
+      #       story_point_label_regex = re.compile(REGEX_STORY_POINT_LABEL)
+      #       updated_labels = [i for i in updated_labels if not story_point_label_regex.match(i)]
+      #       if org_tracker.TYPE in ["github", "gitlab"]:
+      #          updated_labels = updated_labels+[f'{org_issue.story_point} pts']
+      #       elif org_tracker.TYPE == "jira":
+      #          updated_labels = updated_labels+[f'{org_issue.story_point}pts']
+      #    # Re-apply the original priority label if present
+      #    if org_issue.priority:
+      #       if org_tracker.TYPE in ["github", "gitlab"]:
+      #          priority_label_regex = re.compile(REGEX_PRIORITY_LABEL)
+      #          updated_labels = [i for i in updated_labels if not priority_label_regex.match(i)]
+      #          updated_labels = updated_labels+[f'prio {org_issue.priority}']
 
       org_update_param['labels'] = updated_labels
       org_issue.update(**org_update_param)
@@ -622,19 +664,35 @@ Defined sync attributes:
       changing_attribute_param['description'] = f"Original issue url: {org_issue.url}\n\n{org_issue.description}"
       if dest_issue.labels != updated_labels:
          changing_attribute_param['labels'] = updated_labels
-      if not dest_issue.story_point and dest_issue.story_point != org_issue.story_point:
-         changing_attribute_param['story_point'] = org_issue.story_point
-      if dest_issue.priority is None and dest_issue.priority != org_issue.priority:
-         changing_attribute_param['priority'] = org_issue.priority
-      if dest_issue.assignee.lower() == "unassigned" and dest_issue.assignee != assignee_id:
+      if des_is_master:
+         # Only push story_point/priority/assignee/sprint to destination when not already set there
+         if not dest_issue.story_point and dest_issue.story_point != org_issue.story_point:
+            changing_attribute_param['story_point'] = org_issue.story_point
+         if dest_issue.priority is None and dest_issue.priority != org_issue.priority:
+            changing_attribute_param['priority'] = org_issue.priority
+         if dest_issue.assignee.lower() == "unassigned" and dest_issue.assignee != assignee_id:
+            changing_attribute_param['assignee'] = assignee_id
+         if not dest_issue.sprint:
+            if org_issue.sprint:
+               changing_attribute_param['sprint'] = org_issue.sprint
+            elif getattr(des_tracker.tracker_client, "planned_for", None):
+               # Update unplanned issue to default planned_for
+               changing_attribute_param['planned_for'] = des_tracker.tracker_client.planned_for
+      else:
+         # Original is master: always push planning info from original to destination
+         if org_issue.story_point:
+            changing_attribute_param['story_point'] = org_issue.story_point
+         if org_issue.priority is not None:
+            changing_attribute_param['priority'] = org_issue.priority
          changing_attribute_param['assignee'] = assignee_id
+         if org_issue.sprint:
+            changing_attribute_param['sprint'] = org_issue.sprint
+         elif getattr(des_tracker.tracker_client, "planned_for", None):
+            changing_attribute_param['planned_for'] = des_tracker.tracker_client.planned_for
       if org_issue.type == Ticket.Type.Epic:
          # Force to update title for Epic work item
          changing_attribute_param['title'] = des_title
          changing_attribute_param['epic_statement'] = f"Original issue url: {org_issue.url}\n\n{org_issue.description}"
-      if not dest_issue.sprint and getattr(des_tracker.tracker_client, "planned_for", None):
-         # Update unplanned issue to default planned_for
-         changing_attribute_param['planned_for'] = des_tracker.tracker_client.planned_for
       Logger.log(f"Syncing {', '.join([attr.title() for attr in changing_attribute_param.keys()])}", indent=6)
       des_tracker.update_ticket(dest_issue.id, **changing_attribute_param)
 
@@ -670,6 +728,7 @@ Main function to sync issues between tracking systems.
    # Process destination tracker
    des_tracker = Tracker.create(config['destination'][0])
    des_tracker_params = copy.deepcopy(config['tracker'][config['destination'][0]])
+   des_is_master_config = des_tracker_params.pop('is_master', False)
    if 'condition' in des_tracker_params:
       del des_tracker_params['condition']
    des_tracker.connect(**des_tracker_params)
@@ -685,6 +744,14 @@ Main function to sync issues between tracking systems.
       Logger.log(f"Process issues from {source.title()}:")
       tracker = Tracker.create(source)
       tracker_params = copy.deepcopy(config['tracker'][source])
+      org_is_master_config = tracker_params.pop('is_master', False)
+      # Resolve which tracker is planning master:
+      #   - neither specifies is_master (both false) => des is master (backward-compat)
+      #   - org=True, des not set (false)            => org is master
+      #   - des=True, org any                        => des is master
+      #   - both=True                                => des is master
+      des_is_master = des_is_master_config or not org_is_master_config
+      Logger.log(f"Planning master: {'destination' if des_is_master else 'source'} ({config['destination'][0] if des_is_master else source})", indent=2)
       if 'condition' in tracker_params:
          del tracker_params['condition']
 
@@ -726,7 +793,7 @@ Main function to sync issues between tracking systems.
                sync_status = "synced"
                if not args.dryrun:
                   try:
-                     process_sync_issues(issue, tracker, dest_issue, des_tracker, assignee, user_management, component_mapping, sprint_version_mapping, args.status_only)
+                     process_sync_issues(issue, tracker, dest_issue, des_tracker, assignee, user_management, component_mapping, sprint_version_mapping, args.status_only, des_is_master)
                      sync_issue += 1
                   except Exception as reason:
                      Logger.log_error(f"Cannot sync {dest_issue.tracker.title()} issue {dest_issue.id}. {reason}", indent=4)

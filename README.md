@@ -125,7 +125,11 @@ from Github and JIRA to RTC:
              "project_number": 2,
              "project_field_mapping": {
                 "sprint":      "Sprint",
-                "story_point": "Estimate"
+                "story_point": "Estimate",
+                "priority":    "Priority"
+             },
+             "project_field_value_mapping": {
+                "priority": { "P0": 1, "P1": 2, "P2": 3 }
              },
              "is_master": true,
              "condition": {
@@ -171,15 +175,31 @@ add `project_number` and `project_field_mapping` to the `github` tracker config:
   (e.g. `5` for `.../projects/5`).
 - **`project_field_mapping`** *(object)*: Maps internal attribute names to the
   exact field names as configured in your GitHub Projects v2 board.
+- **`project_field_value_mapping`** *(object)*: Optional per-field value
+  translations applied after extraction. The key is the same internal attribute
+  name; the value is a dict mapping raw GitHub field values to the target value
+  used internally by the tool. Useful when a SingleSelect field uses custom
+  string values (e.g. `"P0"`, `"P1"`) that must be converted to numbers.
 
 Supported internal keys:
 
-| Key           | GitHub field type  | Example field name |
-|---------------|--------------------|--------------------|
-| `sprint`      | Iteration          | `"Sprint"`         |
-| `story_point` | Number             | `"Estimate"`       |
-| `priority`    | Number / SingleSelect | `"Priority"`    |
-| `status`      | SingleSelect       | `"Status"`         |
+| Key           | GitHub field type     | Example field name |
+|---------------|-----------------------|--------------------|
+| `sprint`      | Iteration             | `"Sprint"`         |
+| `story_point` | Number                | `"Estimate"`       |
+| `priority`    | Number / SingleSelect | `"Priority"`       |
+| `status`      | SingleSelect          | `"Status"`         |
+
+Example with value mapping for a string-based priority field:
+
+    "project_field_mapping": {
+       "sprint":      "Sprint",
+       "story_point": "Estimate",
+       "priority":    "Priority"
+    },
+    "project_field_value_mapping": {
+       "priority": { "P0": 1, "P1": 2, "P2": 3 }
+    }
 
 When `project_number` is omitted the tool falls back to label-based
 parsing for story points and priority (existing behaviour).
