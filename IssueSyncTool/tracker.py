@@ -2557,6 +2557,10 @@ Update an existing ticket in the RTC tracker.
 
   Additional keyword arguments for updating the ticket.
       """
+      # RTC uses 'planned_for' for sprint; translate the generic key.
+      # The fallback/warning logic for missing sprint names is handled inside RTCClient.
+      if 'sprint' in kwargs:
+         kwargs['planned_for'] = kwargs.pop('sprint')
       self.tracker_client.update_workitem(ticket_id, **kwargs)
 
 class Tracker:
