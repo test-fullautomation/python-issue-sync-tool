@@ -16,7 +16,7 @@ with Python 3.
 
 1.  Installation via PyPi (recommended for users)
 
-    ``` 
+    ```
     pip install IssueSyncTool
     ```
 
@@ -25,57 +25,57 @@ with Python 3.
 
 2.  Installation via GitHub (recommended for developers)
 
-    -   Clone the **python-issue-sync-tool** repository to your machine.
+    - Clone the **python-issue-sync-tool** repository to your machine.
 
-        ``` 
-        git clone https://github.com/test-fullautomation/python-issue-sync-tool.git
-        ```
+      ```
+      git clone https://github.com/test-fullautomation/python-issue-sync-tool.git
+      ```
 
-        [IssueSyncTool in
-        GitHub](https://github.com/test-fullautomation/python-issue-sync-tool)
+      [IssueSyncTool in
+      GitHub](https://github.com/test-fullautomation/python-issue-sync-tool)
 
-    -   Install dependencies
+    - Install dependencies
 
-        **IssueSyncTool** requires some additional Python libraries.
-        Before you install the cloned repository sources you have to
-        install the dependencies manually. The names of all related
-        packages you can find in the file `requirements.txt` in the
-        repository root folder. Use pip to install them:
+      **IssueSyncTool** requires some additional Python libraries.
+      Before you install the cloned repository sources you have to
+      install the dependencies manually. The names of all related
+      packages you can find in the file `requirements.txt` in the
+      repository root folder. Use pip to install them:
 
-        ``` 
-        pip install -r ./requirements.txt
-        ```
+      ```
+      pip install -r ./requirements.txt
+      ```
 
-        Additionally install **LaTeX** (recommended: TeX Live). This is
-        used to render the documentation.
+      Additionally install **LaTeX** (recommended: TeX Live). This is
+      used to render the documentation.
 
-    -   Configure dependencies
+    - Configure dependencies
 
-        The installation of **IssueSyncTool** includes to generate the
-        documentation in PDF format. This is done by an application
-        called **GenPackageDoc**, that is part of the installation
-        dependencies (see `requirements.txt`).
+      The installation of **IssueSyncTool** includes to generate the
+      documentation in PDF format. This is done by an application called
+      **GenPackageDoc**, that is part of the installation dependencies
+      (see `requirements.txt`).
 
-        **GenPackageDoc** uses **LaTeX** to generate the documentation
-        in PDF format. Therefore **GenPackageDoc** needs to know where
-        to find **LaTeX**. This is defined in the **GenPackageDoc**
-        configuration file
+      **GenPackageDoc** uses **LaTeX** to generate the documentation in
+      PDF format. Therefore **GenPackageDoc** needs to know where to
+      find **LaTeX**. This is defined in the **GenPackageDoc**
+      configuration file
 
-        ``` 
-        packagedoc\packagedoc_config.json
-        ```
+      ```
+      packagedoc\packagedoc_config.json
+      ```
 
-        Before you start the installation you have to introduce the
-        following environment variable, that is used in
-        `packagedoc_config.json`:
+      Before you start the installation you have to introduce the
+      following environment variable, that is used in
+      `packagedoc_config.json`:
 
-        -   `GENDOC_LATEXPATH` : path to `pdflatex` executable
+      - `GENDOC_LATEXPATH` : path to `pdflatex` executable
 
-    -   Use the following command to install **IssueSyncTool**:
+    - Use the following command to install **IssueSyncTool**:
 
-        ``` 
-        python setup.py install
-        ```
+      ```
+      python setup.py install
+      ```
 
 After succesful installation, the executable file **IssueSyncTool** will
 be available (under *Scripts* folder of Python on Windows and
@@ -108,7 +108,7 @@ The usage should be showed as below:
 
 ### Example
 
-Sample configuration JSON [sync_config.json]{.title-ref} to sync issues
+Sample configuration JSON `sync_config.json` to sync issues
 from Github and JIRA to RTC:
 
     {
@@ -122,6 +122,12 @@ from Github and JIRA to RTC:
                 "python-issue-sync-tool",
                 "RobotFramework_AIO"
              ],
+             "project_number": 2,
+             "project_field_mapping": {
+                "sprint":      "Sprint",
+                "story_point": "Estimate"
+             },
+             "is_master": true,
              "condition": {
                 "state": "open"
              }
@@ -155,6 +161,46 @@ from Github and JIRA to RTC:
 Execute the **IssueSyncTool** with about configuration file. :
 
     IssueSyncTool --config sync_config.json
+
+### GitHub Projects v2 Integration
+
+To retrieve **Sprint** and **Estimation** data from a GitHub Projects v2 board,
+add `project_number` and `project_field_mapping` to the `github` tracker config:
+
+- **`project_number`** *(integer)*: The number shown in the project URL
+  (e.g. `5` for `.../projects/5`).
+- **`project_field_mapping`** *(object)*: Maps internal attribute names to the
+  exact field names as configured in your GitHub Projects v2 board.
+
+Supported internal keys:
+
+| Key           | GitHub field type  | Example field name |
+|---------------|--------------------|--------------------|
+| `sprint`      | Iteration          | `"Sprint"`         |
+| `story_point` | Number             | `"Estimate"`       |
+| `priority`    | Number / SingleSelect | `"Priority"`    |
+| `status`      | SingleSelect       | `"Status"`         |
+
+When `project_number` is omitted the tool falls back to label-based
+parsing for story points and priority (existing behaviour).
+
+### Planning Master (`is_master`)
+
+The `is_master` flag (boolean, default `false`) controls the direction of
+planning data synchronisation. Add it to any tracker section:
+
+| `org.is_master` | `des.is_master` | Planning master    |
+|-----------------|-----------------|--------------------|
+| not set / false | not set / false | **destination** ← backward-compatible default |
+| `true`          | not set / false | **source (original)** |
+| not set / false | `true`          | **destination**    |
+| `true`          | `true`          | **destination**    |
+
+**Destination is master** (default): sprint, story point, priority and
+assignee are read from the destination and synced back to the original tracker.
+
+**Source is master**: planning info from the original issue is pushed to the
+destination; no sync-back to the original is performed.
 
 ### Sourcecode Documentation
 

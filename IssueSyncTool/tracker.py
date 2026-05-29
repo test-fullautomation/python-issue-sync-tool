@@ -1,11 +1,12 @@
-from .rtc_client import RTCClient
+from IssueSyncTool.rtc_client import RTCClient
 from github import Github, Auth
 from jira import JIRA
 from gitlab import Gitlab
 from abc import ABC, abstractmethod
 from typing import Union, Optional, Callable
-from .utils import REGEX_PRIORITY_LABEL, REGEX_STORY_POINT_LABEL
+from IssueSyncTool.utils import REGEX_PRIORITY_LABEL, REGEX_STORY_POINT_LABEL
 import re
+import requests
 
 class Status:
    """
@@ -1103,6 +1104,10 @@ Initialize the GithubTracker instance.
       super().__init__()
       self.repositories = list()
       self.project = None
+      self.project_number = None
+      self.project_field_mapping = {}
+      self._token = None
+      self._hostname = "api.github.com"
 
    def __normalize_issue(self, issue, repo: str) -> Ticket:
       """
@@ -1130,6 +1135,10 @@ Normalize an issue to a Ticket object.
 
   A Ticket object created from the issue data.
       """
+      project_fields = self.__get_project_fields(issue)
+      labels = [label.name for label in issue.labels]
+      story_point = project_fields.get("story_point") if "story_point" in project_fields else self.get_story_point_from_labels(labels)
+      priority = project_fields.get("priority") if "priority" in project_fields else self.get_priority_from_labels(labels)
       return Ticket(self.TYPE,
                     issue.number,
                     issue.title,
@@ -1138,9 +1147,10 @@ Normalize an issue to a Ticket object.
                     issue.html_url,
                     Status.normalize_issue_status(self.TYPE, issue.state),
                     repo,
-                    labels=[label.name for label in issue.labels],
-                    priority=self.get_priority_from_labels([label.name for label in issue.labels]),
-                    story_point=self.get_story_point_from_labels([label.name for label in issue.labels]),
+                    labels=labels,
+                    priority=priority,
+                    story_point=story_point,
+                    sprint=project_fields.get("sprint"),
                     issue_client=issue,
                     type=self.__get_issue_type(issue),
                     children=self.__get_sub_issues(issue),
@@ -1230,7 +1240,8 @@ Get the repository client for the specified repository.
 
       return None
 
-   def connect(self, project: str, repository: Union[list, str], token: str, hostname: str = "api.github.com"):
+   def connect(self, project: str, repository: Union[list, str], token: str, hostname: str = "api.github.com",
+               project_number: int = None, project_field_mapping: dict = None):
       """
 Connect to the GitHub tracker.
 
@@ -1259,6 +1270,36 @@ Connect to the GitHub tracker.
   / *Condition*: optional / *Type*: str / *Default*: "api.github.com" /
 
   The hostname of the GitHub server.
+
+* ``project_number``
+
+  / *Condition*: optional / *Type*: int / *Default*: None /
+
+  The GitHub Projects v2 board number used to retrieve fields from the project.
+  When set, field values are fetched from the project via GraphQL API.
+
+* ``project_field_mapping``
+
+  / *Condition*: optional / *Type*: dict / *Default*: None /
+
+  Mapping from internal Ticket attribute names to GitHub Projects v2 field names.
+  Supported keys and their expected GitHub Projects v2 field types:
+
+  - ``sprint``      → Iteration field (e.g. ``"Sprint"``)
+  - ``story_point`` → Number field    (e.g. ``"Estimate"``)
+  - ``priority``    → Number or Single-select field (e.g. ``"Priority"``)
+  - ``status``      → Single-select field (e.g. ``"Status"``)
+
+  Text and Date fields are also extracted as strings for any mapped key.
+
+  Example::
+
+     {
+        "sprint":      "Sprint",
+        "story_point": "Estimate",
+        "priority":    "Priority",
+        "status":      "Status"
+     }
       """
       self.project = project
       if isinstance(repository, list):
@@ -1267,8 +1308,205 @@ Connect to the GitHub tracker.
          self.repositories = [repository]
       else:
          raise Exception("'repository' parameter should be list of repositories or string of single repo")
+      self.project_number = project_number
+      self.project_field_mapping = project_field_mapping if project_field_mapping else {}
+      self._token = token
+      self._hostname = hostname
       auth = Auth.Token(token)
       self.tracker_client = Github(auth=auth, base_url=f"https://{hostname}")
+
+   def __get_graphql_endpoint(self) -> str:
+      """
+Determine the GraphQL API endpoint based on the configured hostname.
+
+**Returns:**
+
+* ``endpoint``
+
+  / *Type*: str /
+
+  The GraphQL API endpoint URL.
+      """
+      hostname = self._hostname.rstrip("/")
+      if hostname == "api.github.com":
+         return "https://api.github.com/graphql"
+      # For GitHub Enterprise Server: strip REST path suffix (/api/v3) and use /api/graphql
+      hostname = re.sub(r"/api/v\d+$", "", hostname)
+      return f"https://{hostname}/api/graphql"
+
+   def __graphql_request(self, query: str, variables: dict = None) -> dict:
+      """
+Execute a GraphQL request against the GitHub API.
+
+**Arguments:**
+
+* ``query``
+
+  / *Condition*: required / *Type*: str /
+
+  The GraphQL query string.
+
+* ``variables``
+
+  / *Condition*: optional / *Type*: dict / *Default*: None /
+
+  Variables to pass to the GraphQL query.
+
+**Returns:**
+
+* ``data``
+
+  / *Type*: dict /
+
+  The ``data`` field from the GraphQL response.
+
+**Raises:**
+
+* ``Exception``
+
+  If the request fails or GraphQL returns errors.
+      """
+      endpoint = self.__get_graphql_endpoint()
+      headers = {
+         "Authorization": f"Bearer {self._token}",
+         "Content-Type": "application/json"
+      }
+      payload = {"query": query}
+      if variables:
+         payload["variables"] = variables
+
+      response = requests.post(endpoint, json=payload, headers=headers, timeout=30)
+      response.raise_for_status()
+      result = response.json()
+      if "errors" in result:
+         raise Exception(f"GraphQL error: {result['errors']}")
+      return result.get("data", {})
+
+   def __get_project_fields(self, issue) -> dict:
+      """
+Get GitHub Projects v2 field values for the given issue based on ``project_field_mapping``.
+
+Returns an empty dict when ``project_number`` is not configured, when
+``project_field_mapping`` is empty, or when the issue is not linked to the
+configured project.
+
+Supported GitHub Projects v2 field types:
+
+- ``ProjectV2ItemFieldIterationValue`` → extracted as the iteration ``title`` (str)
+- ``ProjectV2ItemFieldNumberValue``    → extracted as ``number``, cast to int when whole
+- ``ProjectV2ItemFieldSingleSelectValue`` → extracted as the option ``name`` (str)
+- ``ProjectV2ItemFieldTextValue``      → extracted as ``text`` (str)
+- ``ProjectV2ItemFieldDateValue``      → extracted as ``date`` (str)
+
+**Arguments:**
+
+* ``issue``
+
+  / *Condition*: required / *Type*: <class 'github.Issue.Issue'> /
+
+  The GitHub issue object.
+
+**Returns:**
+
+* ``fields``
+
+  / *Type*: dict /
+
+  A dict mapping internal Ticket attribute names to their extracted values,
+  e.g. ``{"sprint": "PI 2026.01", "story_point": 3}``.
+      """
+      if not self.project_number or not self.project_field_mapping:
+         return {}
+
+      node_id = issue._rawData.get("node_id")
+      if not node_id:
+         return {}
+
+      # Build reverse lookup: gh_field_name -> internal attribute name
+      gh_to_internal = {v: k for k, v in self.project_field_mapping.items()}
+
+      query = """
+query GetIssueProjectItems($nodeId: ID!) {
+  node(id: $nodeId) {
+    ... on Issue {
+      projectItems(first: 10) {
+        nodes {
+          project {
+            number
+          }
+          fieldValues(first: 20) {
+            nodes {
+              __typename
+              ... on ProjectV2ItemFieldIterationValue {
+                title
+                field {
+                  ... on ProjectV2IterationField { name }
+                }
+              }
+              ... on ProjectV2ItemFieldNumberValue {
+                number
+                field {
+                  ... on ProjectV2Field { name }
+                }
+              }
+              ... on ProjectV2ItemFieldSingleSelectValue {
+                name
+                field {
+                  ... on ProjectV2SingleSelectField { name }
+                }
+              }
+              ... on ProjectV2ItemFieldTextValue {
+                text
+                field {
+                  ... on ProjectV2Field { name }
+                }
+              }
+              ... on ProjectV2ItemFieldDateValue {
+                date
+                field {
+                  ... on ProjectV2Field { name }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+"""
+      try:
+         data = self.__graphql_request(query, {"nodeId": node_id})
+      except Exception as reason:
+         raise Exception(f"Failed to get project fields for issue {issue.number}. Reason: {reason}")
+
+      result = {}
+      _VALUE_KEY = {
+         "ProjectV2ItemFieldIterationValue": "title",
+         "ProjectV2ItemFieldNumberValue": "number",
+         "ProjectV2ItemFieldSingleSelectValue": "name",
+         "ProjectV2ItemFieldTextValue": "text",
+         "ProjectV2ItemFieldDateValue": "date",
+      }
+      project_items = data.get("node", {}).get("projectItems", {}).get("nodes", [])
+      for item in project_items:
+         if item.get("project", {}).get("number") != self.project_number:
+            continue
+         for field_val in item.get("fieldValues", {}).get("nodes", []):
+            typename = field_val.get("__typename")
+            gh_field_name = field_val.get("field", {}).get("name", "")
+            internal_name = gh_to_internal.get(gh_field_name)
+            if internal_name is None or typename not in _VALUE_KEY:
+               continue
+            raw = field_val.get(_VALUE_KEY[typename])
+            if raw is None:
+               continue
+            # Cast number fields to int when the value is a whole number
+            if typename == "ProjectV2ItemFieldNumberValue":
+               raw = int(raw) if float(raw) == int(float(raw)) else float(raw)
+            result[internal_name] = raw
+
+      return result
 
    def get_tickets(self, **kwargs) -> list[Ticket]:
       """

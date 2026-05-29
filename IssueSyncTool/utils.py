@@ -35,6 +35,11 @@ CONFIG_SCHEMA = {
                      "minItems": 1,
                      "$ref": "#/$defs/array_of_string"
                   },
+                  "project_number": {"type": "integer"},
+                  "project_field_mapping": {
+                     "type": "object",
+                     "additionalProperties": {"type": "string"}
+                  },
                   "condition": {
                      "$ref": "#/$defs/github_condition",
                      "exclude": {
