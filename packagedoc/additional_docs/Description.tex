@@ -146,6 +146,68 @@ information about:
 
 The other tracker can be configured as the same way.
 
+\subsection{GitHub Projects v2 Integration}
+
+To retrieve \textbf{Sprint} and \textbf{Estimation} data from a GitHub Projects v2
+board, add the following optional fields to the \pcode{github} tracker configuration:
+
+\begin{itemize}
+   \item \pcode{project\_number} (integer): The number shown in the project URL
+         (e.g.\ \pcode{5} for \pcode{.../projects/5}).
+   \item \pcode{project\_field\_mapping} (object): Maps internal issue attribute
+         names to the exact field names configured in the GitHub Projects v2 board.
+   \item \pcode{project\_field\_value\_mapping} (object): Optional per-field value
+         translations. The key is the same internal attribute name; the value is a
+         dict mapping raw GitHub field values (strings) to the target value used
+         internally by the tool. Useful when a SingleSelect field uses custom string
+         values (e.g.\ \plog{P0}, \plog{P1}) that must be converted to numbers.
+\end{itemize}
+
+Supported mapping keys and their corresponding GitHub Projects v2 field types:
+
+\begin{center}
+\begin{tabular}{|l|l|l|}
+   \hline
+   \textbf{Key} & \textbf{GitHub field type} & \textbf{Example field name} \\
+   \hline
+   \pcode{sprint}      & Iteration           & \plog{Sprint}    \\
+   \hline
+   \pcode{story\_point} & Number              & \plog{Estimate}  \\
+   \hline
+   \pcode{priority}    & Number / SingleSelect & \plog{Priority} \\
+   \hline
+   \pcode{status}      & SingleSelect        & \plog{Status}    \\
+   \hline
+\end{tabular}
+\end{center}
+
+When \pcode{project\_number} is omitted the tool falls back to label-based
+parsing for story points and priority (existing behaviour).
+
+Example configuration:
+\begin{pythoncode}
+{
+   ...
+   "tracker": {
+      "github": {
+         "project" : "test-fullautomation",
+         "token": "<your-PAT>",
+         "repository": ["RobotFramework_AIO"],
+         "project_number": 2,
+         "project_field_mapping": {
+            "sprint":      "Sprint",
+            "story_point": "Estimate",
+            "priority":    "Priority"
+         },
+         "project_field_value_mapping": {
+            "priority": { "P0": 1, "P1": 2, "P2": 3 }
+         },
+         "condition": { "state": "open" }
+      }
+   }
+}
+\end{pythoncode}
+
 \subsection{User Mapping}
 User mapping ensures that the correct user is assigned in the synchronization
 process across different platforms.
@@ -237,6 +299,55 @@ Example issue:
    \item Destination Tracker Issue Title: \plog{[GenPkgDoc] Fix missing documentation}
 \end{itemize}
 
+\subsection{Planning Master Configuration}
+
+The \pcode{is_master} flag (boolean, default \pcode{false}) declares which
+tracker is authoritative for planning information (sprint, story point, priority,
+assignee). It can be added to any tracker section in the configuration.
+
+The effective planning master is resolved as follows:
+
+\begin{center}
+\begin{tabular}{|l|l|l|}
+   \hline
+   \textbf{org.is\_master} & \textbf{des.is\_master} & \textbf{Planning master} \\
+   \hline
+   not set or false & not set or false & Destination \textit{(backward-compatible default)} \\
+   \hline
+   \pcode{true}    & not set or false & Source (original) \\
+   \hline
+   not set or false & \pcode{true}    & Destination \\
+   \hline
+   \pcode{true}    & \pcode{true}    & Destination \\
+   \hline
+\end{tabular}
+\end{center}
+
+\textbf{Destination is master} (default): Sprint, story point, priority and
+assignee are read from the destination issue and synced back to the original
+tracker.
+
+\textbf{Source is master}: Planning information from the original issue is
+pushed to the destination tracker and overrides the destination values.
+No sync-back to the original is performed.
+
+Example — GitHub as planning master syncing to RTC:
+\begin{pythoncode}
+{
+   "source": ["github"],
+   "destination": ["rtc"],
+   "tracker": {
+      "github": {
+         "is_master": true,
+         ...
+      },
+      "rtc": {
+         ...
+      }
+   }
+}
+\end{pythoncode}
+
 \subsection{Sprint-Version Mapping Configuration}
 
 Consider a team delivering both \pcode{AIO} and \pcode{DevAtServ} in the same
@@ -293,7 +404,7 @@ This configuration plays a critical role in environments where teams are:
 \hypertarget{additional-features}{%
 \section{Additional features}\label{additional-features}}
 
-\subsection{\pcode{nosync} Label}
+\subsection{nosync Label}
 The \pcode{nosync} label is a special label that can be applied to issues in the
 source tracker (e.g., GitHub, Jira, Gitlab) to prevent them from being synced to
 the destination tracker (RTC).
@@ -486,24 +597,27 @@ organizational standards.
       \cline{2-4}
       & Labels & $\rightarrow$ & Labels \\
       \cline{2-4}
-      & Sprint & $\leftarrow$ & Sprint \\
+      & \multirow{2}{*}{Sprint}
+         & $\leftarrow$ & Sprint (if destination is master) \\
+         \cline{3-4}
+         & & $\rightarrow$ & Sprint (if source is master) \\
       \cline{2-4}
-      & Version & $\leftarrow$ & Version \\
+      & Version & $\leftarrow$ & Version (if destination is master) \\
       \cline{2-4}
       & \multirow{2}{*}{Assignee}
-         & $\leftarrow$ & Assignee (if set on Destination) \\
+         & $\leftarrow$ & Assignee (if set on Destination, destination is master) \\
          \cline{3-4}
-         & & $\rightarrow$ & Assignee (if not set on Destination) \\
+         & & $\rightarrow$ & Assignee (if not set on Destination, or source is master) \\
       \cline{2-4}
       & \multirow{2}{*}{Story point}
-         & $\leftarrow$ & Story point (if set on Destination) \\
+         & $\leftarrow$ & Story point (if set on Destination, destination is master) \\
          \cline{3-4}
-         & & $\rightarrow$ & Story point (if not set on Destination) \\
+         & & $\rightarrow$ & Story point (if not set on Destination, or source is master) \\
       \cline{2-4}
       & \multirow{2}{*}{Priority}
-         & $\leftarrow$ & Priority (is set on Destination) \\
+         & $\leftarrow$ & Priority (if set on Destination, destination is master) \\
          \cline{3-4}
-         & & $\rightarrow$ & Priority (if not set on Destination) \\
+         & & $\rightarrow$ & Priority (if not set on Destination, or source is master) \\
    \hline
 \end{longtable}
 
@@ -536,6 +650,8 @@ organizational standards.
    \hline
    Priority & Labels (prio x) & Labels (prio x) & Priority & Priority \\
    \hline
-   Sprint & Labels (PI.*) & Labels (PI.*) & Sprint & Planned For \\
+   Sprint & Labels (PI.*) or Projects v2 & Labels (PI.*) & Sprint & Planned For \\
+   \hline
+   Estimation & Labels (x pts) or Projects v2 & Labels (x pts) & Estimate & Story point \\
    \hline
 \end{longtable}

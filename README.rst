@@ -15,10 +15,10 @@
 IssueSyncTool Description
 =========================
 
-The **IssueSyncTool** provides ability synchronize issues across multiple project management 
-platforms (tracker) like GitHub, Jira, GitLab, and RTC. 
+The **IssueSyncTool** provides ability synchronize issues across multiple project management
+platforms (tracker) like GitHub, Jira, GitLab, and RTC.
 
-It facilitates seamless integration of issue tracking and planning workflows, 
+It facilitates seamless integration of issue tracking and planning workflows,
 ensuring data consistency and efficient project management.
 
 **IssueSyncTool** tool is operating system independent and only works with
@@ -96,13 +96,13 @@ and conditions (queries) for sync.
 
 Use below command to get tools's usage:
 
-::
+.. code::
 
    IssueSyncTool -h
 
 The usage should be showed as below:
 
-::
+.. code::
 
    usage: IssueSyncTool (Tickets Sync Tool) [-h] --config CONFIG [--dryrun] [--csv] [-v]
 
@@ -120,7 +120,7 @@ Example
 
 Sample configuration JSON `sync_config.json` to sync issues from Github and JIRA to RTC:
 
-::
+.. code::
 
    {
       "source": ["github", "jira"],
@@ -133,6 +133,16 @@ Sample configuration JSON `sync_config.json` to sync issues from Github and JIRA
                "python-issue-sync-tool",
                "RobotFramework_AIO"
             ],
+            "project_number": 2,
+            "project_field_mapping": {
+               "sprint":      "Sprint",
+               "story_point": "Estimate",
+               "priority":    "Priority"
+            },
+            "project_field_value_mapping": {
+               "priority": { "P0": 1, "P1": 2, "P2": 3 }
+            },
+            "is_master": true,
             "condition": {
                "state": "open"
             }
@@ -164,14 +174,100 @@ Sample configuration JSON `sync_config.json` to sync issues from Github and JIRA
    }
 
 Execute the **IssueSyncTool** with about configuration file.
-::
+.. code::
 
    IssueSyncTool --config sync_config.json
+
+GitHub Projects v2 Integration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To retrieve **Sprint** and **Estimation** data from a GitHub Projects v2 board,
+add ``project_number`` and ``project_field_mapping`` to the ``github`` tracker config:
+
+- ``project_number`` *(integer)*: The number shown in the project URL
+  (e.g. ``5`` for ``.../projects/5``).
+- ``project_field_mapping`` *(object)*: Maps internal attribute names to the
+  exact field names as configured in your GitHub Projects v2 board.
+- ``project_field_value_mapping`` *(object)*: Optional per-field value
+  translations applied after extraction. The key is the same internal attribute
+  name; the value is a dict mapping raw GitHub field values to the target value
+  used internally by the tool. Useful when a SingleSelect field uses custom
+  string values (e.g. ``"P0"``, ``"P1"``) that must be converted to numbers.
+
+Supported internal keys:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 30 25
+
+   * - Key
+     - GitHub field type
+     - Example field name
+   * - ``sprint``
+     - Iteration
+     - ``"Sprint"``
+   * - ``story_point``
+     - Number
+     - ``"Estimate"``
+   * - ``priority``
+     - Number / SingleSelect
+     - ``"Priority"``
+   * - ``status``
+     - SingleSelect
+     - ``"Status"``
+
+Example with value mapping for a string-based priority field:
+
+.. code::
+
+   "project_field_mapping": {
+      "sprint":      "Sprint",
+      "story_point": "Estimate",
+      "priority":    "Priority"
+   },
+   "project_field_value_mapping": {
+      "priority": { "P0": 1, "P1": 2, "P2": 3 }
+   }
+
+When ``project_number`` is omitted the tool falls back to label-based
+parsing for story points and priority (existing behaviour).
+
+Planning Master (``is_master``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``is_master`` flag (boolean, default ``false``) controls the direction of
+planning data synchronisation. Add it to any tracker section:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 25 30
+
+   * - ``org.is_master``
+     - ``des.is_master``
+     - Planning master
+   * - not set / false
+     - not set / false
+     - **destination** ← backward-compatible default
+   * - ``true``
+     - not set / false
+     - **source (original)**
+   * - not set / false
+     - ``true``
+     - **destination**
+   * - ``true``
+     - ``true``
+     - **destination**
+
+**Destination is master** (default): sprint, story point, priority and
+assignee are read from the destination and synced back to the original tracker.
+
+**Source is master**: planning info from the original issue is pushed to the
+destination; no sync-back to the original is performed.
 
 Sourcecode Documentation
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-To understand more detail about the tool's features and how to define the proper configuration file, 
+To understand more detail about the tool's features and how to define the proper configuration file,
 please refer to `IssueSyncTool tool’s Documentation`_.
 
 Feedback

@@ -207,20 +207,23 @@ Initialize the RTCClient instance.
       return return_data
 
    def __get_defined_planned_for(self):
-      url = f"{self.hostname}/ccm/oslc/iterations?oslc.select=dcterms:identifier,dcterms:title"
+      url = f"{self.hostname}/ccm/oslc/iterations?oslc.select=dcterms:identifier,dcterms:title,rtc_cm:projectArea"
       return self.__retrieve_planned_for_results(url)
 
    def get_planned_for_url(self, name):
       if name:
-         url = f"{self.hostname}/ccm/oslc/iterations?oslc.where=dcterms:title=\"{name}\"&oslc.select=dcterms:identifier,dcterms:title"
+         url = f"{self.hostname}/ccm/oslc/iterations?oslc.where=dcterms:title=\"{name}\"&oslc.select=dcterms:identifier,dcterms:title,rtc_cm:projectArea"
          res = self.__get_request(url, "Planned For")
          try:
             res_json = res.json()
-            return res_json['oslc:results'][0]["rdf:about"]
+            for item in res_json['oslc:results']:
+               project_id = item['rtc_cm:projectArea']['rdf:resource'].split("/")[-1]
+               if project_id == self.project['id']:
+                  return item["rdf:about"]
          except:
             raise Exception(f"Failed to get 'Planned For' url from response {res_json}")
 
-      return None
+      raise Exception(f"Planned For '{name}' does not belong to project '{self.project['name']}'")
 
    def __get_project_scope(self, project_id=None):
       """
@@ -923,14 +926,31 @@ Update a work item with the specified attributes.
                oAttr.text = val
             elif attr == "planned_for":
                if val:
-                  if oAttr is not None:
-                     oAttr.set("{%s}resource" % nsmap['rdf'], self.get_planned_for_url(val))
-                  else:
-                     oChangeRequest = oWorkItem.find(f"oslc_cm:ChangeRequest", nsmap)
-                     namespace, xml_node = self.xml_attr_mapping['planned_for'].split(":")
-                     oPlannedFor = etree.Element(f"{{{nsmap[namespace]}}}{xml_node}", nsmap=nsmap)
-                     oPlannedFor.set("{%s}resource" % nsmap['rdf'], self.get_planned_for_url(val))
-                     oChangeRequest.append(oPlannedFor)
+                  # Resolve the planned_for URL; fall back to the default if the given name
+                  # does not exist on RTC, so the rest of the ticket update can proceed.
+                  try:
+                     planned_for_url = self.get_planned_for_url(val)
+                  except Exception:
+                     print(f"WARN: Sprint/PlannedFor '{val}' not found on RTC.", end="")
+                     if self.planned_for and self.planned_for != val:
+                        print(f" Falling back to default planned_for '{self.planned_for}'.")
+                        try:
+                           planned_for_url = self.get_planned_for_url(self.planned_for)
+                        except Exception:
+                           print(f" Default planned_for '{self.planned_for}' also not found — skipping sprint update.")
+                           planned_for_url = None
+                     else:
+                        print(" No default planned_for configured — skipping sprint update.")
+                        planned_for_url = None
+                  if planned_for_url:
+                     if oAttr is not None:
+                        oAttr.set("{%s}resource" % nsmap['rdf'], planned_for_url)
+                     else:
+                        oChangeRequest = oWorkItem.find(f"oslc_cm:ChangeRequest", nsmap)
+                        namespace, xml_node = self.xml_attr_mapping['planned_for'].split(":")
+                        oPlannedFor = etree.Element(f"{{{nsmap[namespace]}}}{xml_node}", nsmap=nsmap)
+                        oPlannedFor.set("{%s}resource" % nsmap['rdf'], planned_for_url)
+                        oChangeRequest.append(oPlannedFor)
             else:
                if oAttr is not None:
                   oAttr.clear()

@@ -35,6 +35,18 @@ CONFIG_SCHEMA = {
                      "minItems": 1,
                      "$ref": "#/$defs/array_of_string"
                   },
+                  "project_number": {"type": "integer"},
+                  "project_field_mapping": {
+                     "type": "object",
+                     "additionalProperties": {"type": "string"}
+                  },
+                  "project_field_value_mapping": {
+                     "type": "object",
+                     "additionalProperties": {
+                        "type": "object"
+                     }
+                  },
+                  "is_master": {"type": "boolean"},
                   "condition": {
                      "$ref": "#/$defs/github_condition",
                      "exclude": {
@@ -55,6 +67,7 @@ CONFIG_SCHEMA = {
                      "minItems": 1,
                      "$ref": "#/$defs/array_of_string"
                   },
+                  "is_master": {"type": "boolean"},
                   "condition": {
                      "$ref": "#/$defs/gitlab_condition",
                      "exclude": {
@@ -72,6 +85,7 @@ CONFIG_SCHEMA = {
                   "project": {"type": "string"},
                   "token": {"type": "string"},
                   "board_id": {"type": ["integer", "string"]},
+                  "is_master": {"type": "boolean"},
                   "condition": {
                      "$ref": "#/$defs/jira_condition",
                      "exclude": {
@@ -95,6 +109,7 @@ CONFIG_SCHEMA = {
                   "planned_for": {"type": "string"},
                   "workflow_id": {"type": "string"},
                   "state_transition": {"type": "object"},
+                  "is_master": {"type": "boolean"},
                   "condition": {
                      "$ref": "#/$defs/rtc_condition",
                      "exclude": {

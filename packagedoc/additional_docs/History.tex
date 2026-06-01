@@ -79,4 +79,11 @@
 
     \historyversiondate{0.3.9}{04/2026}
     \historychange{Update configuration schema to support Github Enterprise Server.}
+
+    \historyversiondate{0.4.0}{05/2026}
+    \historychange{- Add GitHub Projects v2 integration: retrieve Sprint and Estimation via GraphQL API using \pcode{project\_number} and \pcode{project\_field\_mapping} configuration.\newline
+- Add \pcode{project\_field\_value\_mapping} configuration to translate raw GitHub Projects v2 field values (e.g.\ string priority labels \plog{P0}, \plog{P1}, \plog{P2}) to the internal numeric representation.\newline
+- Add \pcode{is\_master} configuration flag for all tracker types to control the planning data sync direction.\newline
+  When the destination is master (default), planning info is synced back to the original tracker.\newline
+  When the source is master, planning info is pushed from the original to the destination and no sync-back is performed.}
 \end{packagehistory}
