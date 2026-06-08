@@ -223,7 +223,28 @@ Initialize the RTCClient instance.
          except:
             raise Exception(f"Failed to get 'Planned For' url from response {res_json}")
 
-      raise Exception(f"Planned For '{name}' does not belong to project '{self.project['name']}'")
+         raise Exception(f"Planned For '{name}' does not belong to project '{self.project['name']}'")
+      else:
+         raise Exception("No Planned For name provided.")
+
+   def retrieve_planned_for_url(self, name):
+      """
+Retrieve the Planned For URL for the given name, with fallback to default if not found.
+      """
+      planned_for_url = None
+      try:
+         planned_for_url = self.get_planned_for_url(name)
+      except Exception:
+         if self.planned_for and self.planned_for != name:
+            print(f" Falling back to default planned_for '{self.planned_for}'.")
+            try:
+               planned_for_url = self.get_planned_for_url(self.planned_for)
+            except Exception:
+               print(f" Default planned_for '{self.planned_for}' also not found — skipping sprint update.")
+         else:
+            print(" No default planned_for configured — skipping sprint update.")
+
+      return planned_for_url
 
    def __get_project_scope(self, project_id=None):
       """
@@ -928,20 +949,8 @@ Update a work item with the specified attributes.
                if val:
                   # Resolve the planned_for URL; fall back to the default if the given name
                   # does not exist on RTC, so the rest of the ticket update can proceed.
-                  try:
-                     planned_for_url = self.get_planned_for_url(val)
-                  except Exception:
-                     print(f"WARN: Sprint/PlannedFor '{val}' not found on RTC.", end="")
-                     if self.planned_for and self.planned_for != val:
-                        print(f" Falling back to default planned_for '{self.planned_for}'.")
-                        try:
-                           planned_for_url = self.get_planned_for_url(self.planned_for)
-                        except Exception:
-                           print(f" Default planned_for '{self.planned_for}' also not found — skipping sprint update.")
-                           planned_for_url = None
-                     else:
-                        print(" No default planned_for configured — skipping sprint update.")
-                        planned_for_url = None
+                  planned_for_url = self.retrieve_planned_for_url(val)
+
                   if planned_for_url:
                      if oAttr is not None:
                         oAttr.set("{%s}resource" % nsmap['rdf'], planned_for_url)
@@ -1167,11 +1176,7 @@ Create a new work item.
          project_scope = ""
 
       # Get planned_for information
-      planned_for_url = ""
-      if planned_for:
-         planned_for_url = self.get_planned_for_url(planned_for)
-      else:
-         planned_for_url = self.get_planned_for_url(self.planned_for)
+      planned_for_url = self.retrieve_planned_for_url(planned_for)
 
       if planned_for_url:
          planned_for = f"<{self.xml_attr_mapping['planned_for']} rdf:resource=\"{planned_for_url}\" />"

@@ -805,12 +805,20 @@ Create a new ticket in the Jira tracker.
 
   The ID of the created ticket.
       """
+      # Map title -> summary (Jira field name)
+      if 'title' in kwargs:
+         kwargs['summary'] = kwargs.pop('title')
       if 'issuetype' not in kwargs:
          kwargs['issuetype'] = {"name": "Story"}
       if 'assignee' in kwargs:
          assignee_val = {"name" : kwargs['assignee']}
          kwargs['assignee'] = assignee_val
-
+      # Convert priority integer level to Jira format {"name": "..."}
+      if 'priority' in kwargs and isinstance(kwargs['priority'], int):
+         kwargs['priority'] = {"name": self.get_priority_name_from_level(kwargs['priority'])}
+      # Remove keys not supported by Jira create_issue
+      for key in ('story_point', 'sprint', 'type', 'children', 'parent'):
+         kwargs.pop(key, None)
       if not project:
          project = self.project
       issue = self.tracker_client.create_issue(project=project, **kwargs)
@@ -1628,6 +1636,11 @@ Create a new ticket in the GitHub tracker.
   The ID of the created ticket.
       """
       gh_repo = self.__get_repository_client(repository)
+      # GitHub create_issue uses 'body' for description; strip unsupported keys
+      if 'description' in kwargs:
+         kwargs['body'] = kwargs.pop('description')
+      for key in ('story_point', 'priority', 'sprint', 'type', 'children', 'parent'):
+         kwargs.pop(key, None)
       issue = gh_repo.create_issue(**kwargs)
       return issue.number
 
@@ -2106,6 +2119,11 @@ Create a new ticket in the Gitlab tracker.
   The ID of the created ticket.
       """
       gl_project = self.__get_project_client(project)
+      # GitLab issues.create uses 'assignee_id'; strip unsupported keys
+      if 'assignee' in kwargs:
+         kwargs['assignee_id'] = kwargs.pop('assignee')
+      for key in ('story_point', 'priority', 'sprint', 'type', 'children', 'parent'):
+         kwargs.pop(key, None)
       issue = gl_project.issues.create(**kwargs)
       return issue.iid
 
@@ -2537,6 +2555,8 @@ Create a new ticket in the RTC tracker.
 
   The ID of the created ticket.
       """
+      if 'sprint' in kwargs:
+         kwargs['planned_for'] = kwargs.pop('sprint')
       return self.tracker_client.create_workitem(**kwargs)
 
    def update_ticket(self, ticket_id: str, **kwargs):
