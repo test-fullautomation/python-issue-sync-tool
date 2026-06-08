@@ -427,7 +427,7 @@ title with destination issue's id.
                                       assignee=assignee_id,
                                       priority=issue.priority,
                                       labels=issue.labels,
-                                      planned_for=issue.sprint,
+                                      sprint=issue.sprint,
                                       type=issue.type,
                                       children=issue.children,
                                       parent=issue.parent)
