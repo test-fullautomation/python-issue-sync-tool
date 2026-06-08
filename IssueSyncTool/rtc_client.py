@@ -1170,7 +1170,7 @@ Create a new work item.
       planned_for_url = ""
       if planned_for:
          planned_for_url = self.get_planned_for_url(planned_for)
-      else:
+      elif self.planned_for:
          planned_for_url = self.get_planned_for_url(self.planned_for)
 
       if planned_for_url:
