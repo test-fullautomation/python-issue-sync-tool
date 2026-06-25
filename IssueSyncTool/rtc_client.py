@@ -639,7 +639,16 @@ Get the complexity values for the specified project.
       complexity_dict = dict()
       list_complexity = res.json()['oslc:results']
       for item in list_complexity:
-         complexity_dict[item['dcterms:identifier']] = item['rdf:about']
+         # story_point = item['dcterms:identifier']  # Use identifier instead of title to avoid issues with non-integer titles
+         # Currently, TAG define the wrong title for complexity, so we need to use the title to get the correct story point value
+         try:
+            story_point = item['dcterms:title']
+            story_point = story_point.split(" ")[0]  # Get the first part of the title as the story point value
+            int(story_point)
+         except:
+            story_point = item['dcterms:identifier']
+
+         complexity_dict[story_point] = item['rdf:about']
 
       return complexity_dict
 
