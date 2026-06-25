@@ -1213,8 +1213,8 @@ Create a new work item.
       # Get complexity - story point information for story workitem
       complexity = ""
       if type.lower() == "story":
-         self.get_complexity_link(story_point)
-         complexity = f"<{self.xml_attr_mapping['story_point']} rdf:resource=\"{hostname}/ccm/oslc/enumerations/{project_id}/complexity/{story_point}\"/>"
+         complexity_url = self.get_complexity_link(story_point)
+         complexity = f"<{self.xml_attr_mapping['story_point']} rdf:resource=\"{complexity_url}\"/>"
 
       # Get tags information
       tags = ""
