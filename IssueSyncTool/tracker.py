@@ -1181,11 +1181,12 @@ Normalize an issue to a Ticket object.
       if status != Status.closed:
          status = self.get_status_from_labels(labels)
          # Try to get status from project field if it is mapped
-         try:
-            if "status" in project_fields:
-               status = Status.normalize_issue_status(self.TYPE, project_fields.get("status"))
-         except Exception:
-            pass
+         if "status" in project_fields and project_fields.get("status") is not None:
+            native_status = project_fields.get("status")
+            if native_status in Status.STATUS_MAPPING[self.TYPE]:
+               status = Status.normalize_issue_status(self.TYPE, native_status)
+            elif native_status in Status.STATUS_MAPPING[self.TYPE].values():
+               status = native_status
 
       return Ticket(self.TYPE,
                     issue.number,
