@@ -592,9 +592,10 @@ Convert issue status from labels to normalized status.
   The normalized status extracted from the labels.
       """
       for label in labels:
-         if label.replace("_", " ").lower() == "in progress":
+         normalized = label.replace("_", " ").lower()
+         if normalized in ("in progress", "in work"):
             return Status.inProgress
-         elif label.replace("_", " ").lower() == "ready for verifying":
+         if normalized == "ready for verifying":
             return Status.closed
       return Status.open
 
