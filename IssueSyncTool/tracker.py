@@ -15,6 +15,7 @@ Class representing the status of issues in different tracker systems.
    STATUS_MAPPING = {
       "github": {
          "open": "Open",
+         "In Progress": "In Progress",
          "closed": "Closed"
       },
       "gitlab": {
@@ -570,6 +571,32 @@ Example of story point labels: `1 pts`, `2 pts`, ...
             return int(story_point_label[1])
 
       return 0
+
+   def get_status_from_labels(self, labels: list) -> str:
+      """
+Convert issue status from labels to normalized status.
+**Arguments:**
+
+* ``labels``
+
+  / *Condition*: required / *Type*: list /
+
+  A list of labels associated with the issue.
+
+**Returns:**
+
+* ``status``
+
+  / *Type*: str /
+
+  The normalized status extracted from the labels.
+      """
+      for label in labels:
+         if label.replace("_", " ").lower() == "in progress":
+            return Status.inProgress
+         elif label.replace("_", " ").lower() == "ready for verifying":
+            return Status.closed
+      return Status.open
 
    @classmethod
    def time_estimate_to_story_point(cls, seconds: int) -> int:
@@ -1148,13 +1175,24 @@ Normalize an issue to a Ticket object.
       labels = [label.name for label in issue.labels]
       story_point = project_fields.get("story_point") if "story_point" in project_fields else self.get_story_point_from_labels(labels)
       priority = project_fields.get("priority") if "priority" in project_fields else self.get_priority_from_labels(labels)
+
+      status = Status.normalize_issue_status(self.TYPE, issue.state)
+      if status != Status.closed:
+         status = self.get_status_from_labels(labels)
+         # Try to get status from project field if it is mapped
+         try:
+            if "status" in project_fields:
+               status = Status.normalize_issue_status(self.TYPE, project_fields.get("status"))
+         except Exception:
+            pass
+
       return Ticket(self.TYPE,
                     issue.number,
                     issue.title,
                     issue.body,
                     [assignee.login for assignee in issue.assignees],
                     issue.html_url,
-                    Status.normalize_issue_status(self.TYPE, issue.state),
+                    status,
                     repo,
                     labels=labels,
                     priority=priority,
@@ -1925,7 +1963,10 @@ Get the status of an issue.
 
   The status of the issue.
       """
-      return Status.normalize_issue_status(self.TYPE, issue.state)
+      status = Status.normalize_issue_status(self.TYPE, issue.state)
+      if status != Status.closed:
+         status = self.get_status_from_labels(issue.labels)
+      return status
 
    def __get_issue_labels(self, issue):
       """
